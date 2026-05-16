@@ -18,12 +18,12 @@ const iconMap: Record<string, React.ReactNode> = {
 }
 
 const navItems = [
-  { icon: <LayoutDashboard size={18} />, label: 'Dashboard', active: true },
-  { icon: <BarChart3 size={18} />, label: 'Analytics' },
-  { icon: <ShoppingCart size={18} />, label: 'Pedidos' },
-  { icon: <Package size={18} />, label: 'Produtos' },
-  { icon: <Users size={18} />, label: 'Clientes' },
-  { icon: <Settings size={18} />, label: 'Configurações' },
+  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', active: true },
+  { icon: <BarChart3 size={20} />, label: 'Analytics' },
+  { icon: <ShoppingCart size={20} />, label: 'Pedidos' },
+  { icon: <Package size={20} />, label: 'Produtos' },
+  { icon: <Users size={20} />, label: 'Clientes' },
+  { icon: <Settings size={20} />, label: 'Configurações' },
 ]
 
 const statusClass: Record<string, string> = {
@@ -32,14 +32,19 @@ const statusClass: Record<string, string> = {
   'Enviado': styles.statusEnviado,
 }
 
+const rankClass = [styles.rankGold, styles.rankSilver, styles.rankBronze, styles.rankDefault, styles.rankDefault]
+
 export default function App() {
   return (
     <div className={styles.layout}>
-      {/* Sidebar */}
+      {/* Ambient Glow */}
+      <div className={`${styles.ambientGlow} ${styles.glowGreen}`} />
+      <div className={`${styles.ambientGlow} ${styles.glowGold}`} />
+
+      {/* Sidebar — compact icon-only */}
       <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <div className={styles.brandIcon}><Activity size={20} /></div>
-          <span className={styles.brandName}>PulseMetrics</span>
+        <div className={styles.brandIcon}>
+          <Activity size={22} />
         </div>
 
         <nav className={styles.nav}>
@@ -47,19 +52,15 @@ export default function App() {
             <button
               key={item.label}
               className={`${styles.navItem} ${item.active ? styles.navItemActive : ''}`}
+              title={item.label}
             >
               {item.icon}
-              {item.label}
             </button>
           ))}
         </nav>
 
         <div className={styles.sidebarFooter}>
           <div className={styles.avatar}>DA</div>
-          <div className={styles.userInfo}>
-            <span className={styles.userName}>Douglas Andrade</span>
-            <span className={styles.userRole}>Administrador</span>
-          </div>
         </div>
       </aside>
 
@@ -72,10 +73,10 @@ export default function App() {
           </div>
           <div className={styles.topActions}>
             <button className={styles.btnPeriod}>
-              <Calendar size={15} /> Últimos 30 dias
+              <Calendar size={14} /> Últimos 30 dias
             </button>
             <button className={styles.btnExport}>
-              <Download size={15} /> Exportar
+              <Download size={14} /> Exportar
             </button>
           </div>
         </div>
@@ -100,57 +101,89 @@ export default function App() {
         {/* Charts */}
         <div className={styles.chartsRow}>
           <div className={styles.card}>
-            <h3 className={styles.cardTitle}>Receita Mensal</h3>
+            <div className={styles.cardHeader}>
+              <h3 className={styles.cardTitle}>Receita Mensal</h3>
+            </div>
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={revenueData}>
                 <defs>
                   <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3d" />
-                <XAxis dataKey="mes" stroke="#8888a4" fontSize={12} />
-                <YAxis stroke="#8888a4" fontSize={12} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="mes" stroke="#6b7084" fontSize={12} fontFamily="DM Sans" tickLine={false} axisLine={false} />
+                <YAxis stroke="#6b7084" fontSize={12} fontFamily="DM Sans" tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
-                  contentStyle={{ background: '#1a1a28', border: '1px solid #2a2a3d', borderRadius: 10, fontSize: 13 }}
-                  labelStyle={{ color: '#f5f5ff' }}
+                  contentStyle={{
+                    background: 'rgba(14,16,20,0.95)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 12,
+                    fontSize: 13,
+                    fontFamily: 'DM Sans',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+                  }}
+                  labelStyle={{ color: '#eef0f6', fontWeight: 600 }}
                   formatter={(value) => [`R$ ${Number(value).toLocaleString('pt-BR')}`, 'Receita']}
+                  cursor={{ stroke: 'rgba(16,185,129,0.2)', strokeWidth: 1 }}
                 />
-                <Area type="monotone" dataKey="receita" stroke="#7c3aed" strokeWidth={2.5} fill="url(#colorReceita)" />
+                <Area
+                  type="monotone"
+                  dataKey="receita"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  fill="url(#colorReceita)"
+                  dot={false}
+                  activeDot={{ r: 5, fill: '#10b981', stroke: '#08090c', strokeWidth: 2 }}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
           <div className={styles.card}>
-            <h3 className={styles.cardTitle}>Vendas por Categoria</h3>
-            <ResponsiveContainer width="100%" height={220}>
+            <div className={styles.cardHeader}>
+              <h3 className={styles.cardTitle}>Vendas por Categoria</h3>
+            </div>
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
                   data={categoryData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={55}
+                  innerRadius={60}
                   outerRadius={85}
-                  paddingAngle={4}
+                  paddingAngle={3}
                   dataKey="value"
+                  strokeWidth={0}
                 >
                   {categoryData.map((entry, i) => (
                     <Cell key={i} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ background: '#1a1a28', border: '1px solid #2a2a3d', borderRadius: 10, fontSize: 13 }}
+                  contentStyle={{
+                    background: 'rgba(14,16,20,0.95)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 12,
+                    fontSize: 13,
+                    fontFamily: 'DM Sans'
+                  }}
                   formatter={(value) => [`${value}%`, 'Participação']}
                 />
               </PieChart>
             </ResponsiveContainer>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               {categoryData.map((c) => (
-                <span key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#8888a4' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, display: 'inline-block' }} />
-                  {c.name} ({c.value}%)
-                </span>
+                <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#b0b4c0' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 3, background: c.color, display: 'inline-block' }} />
+                    {c.name}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', fontFamily: 'Space Grotesk', fontWeight: 600, color: '#eef0f6' }}>{c.value}%</span>
+                </div>
               ))}
             </div>
           </div>
@@ -159,7 +192,9 @@ export default function App() {
         {/* Bottom Row */}
         <div className={styles.bottomRow}>
           <div className={styles.card}>
-            <h3 className={styles.cardTitle}>Últimas Transações</h3>
+            <div className={styles.cardHeader}>
+              <h3 className={styles.cardTitle}>Últimas Transações</h3>
+            </div>
             <div className={styles.tableWrap}>
               <table>
                 <thead>
@@ -175,16 +210,16 @@ export default function App() {
                 <tbody>
                   {transactions.map((t) => (
                     <tr key={t.id}>
-                      <td style={{ fontWeight: 600, color: '#f5f5ff' }}>{t.id}</td>
+                      <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600, color: '#eef0f6', fontSize: '0.82rem' }}>{t.id}</td>
                       <td>{t.cliente}</td>
                       <td>{t.produto}</td>
-                      <td style={{ fontWeight: 600 }}>{t.valor}</td>
+                      <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600 }}>{t.valor}</td>
                       <td>
                         <span className={`${styles.statusBadge} ${statusClass[t.status]}`}>
                           {t.status}
                         </span>
                       </td>
-                      <td style={{ color: '#8888a4' }}>{t.data}</td>
+                      <td style={{ color: '#6b7084', fontSize: '0.82rem' }}>{t.data}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -193,12 +228,19 @@ export default function App() {
           </div>
 
           <div className={styles.card}>
-            <h3 className={styles.cardTitle}>Top Produtos</h3>
-            {topProducts.map((p) => (
+            <div className={styles.cardHeader}>
+              <h3 className={styles.cardTitle}>Top Produtos</h3>
+            </div>
+            {topProducts.map((p, i) => (
               <div key={p.name} className={styles.productRow}>
-                <div>
-                  <div className={styles.productName}>{p.name}</div>
-                  <div className={styles.productSales}>{p.vendas} vendas</div>
+                <div className={styles.productInfo}>
+                  <div className={`${styles.productRank} ${rankClass[i] || styles.rankDefault}`}>
+                    {i + 1}
+                  </div>
+                  <div>
+                    <div className={styles.productName}>{p.name}</div>
+                    <div className={styles.productSales}>{p.vendas} vendas</div>
+                  </div>
                 </div>
                 <span className={styles.productRevenue}>{p.receita}</span>
               </div>

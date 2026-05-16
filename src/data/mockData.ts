@@ -21,11 +21,11 @@ export const revenueData = [
 ];
 
 export const categoryData = [
-  { name: 'Eletrônicos', value: 35, color: '#7c3aed' },
-  { name: 'Roupas', value: 25, color: '#06b6d4' },
-  { name: 'Casa & Jardim', value: 20, color: '#f59e0b' },
-  { name: 'Esportes', value: 12, color: '#22c55e' },
-  { name: 'Outros', value: 8, color: '#64748b' },
+  { name: 'Eletrônicos', value: 35, color: '#10b981' },
+  { name: 'Roupas', value: 25, color: '#22d3ee' },
+  { name: 'Casa & Jardim', value: 20, color: '#f5c542' },
+  { name: 'Esportes', value: 12, color: '#f43f5e' },
+  { name: 'Outros', value: 8, color: '#6b7084' },
 ];
 
 export const transactions = [
