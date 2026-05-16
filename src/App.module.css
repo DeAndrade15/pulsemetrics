@@ -470,6 +470,118 @@ tr:hover td { background: var(--glass2); }
 /* Hidden elements from old design */
 .brand, .brandName, .userInfo, .userName, .userRole { display: none; }
 
+/* ========== EXTRA STATUSES ========== */
+.statusEntregue { background: rgba(16, 185, 129, 0.08); color: var(--accent2); }
+.statusEntregue::before { background: var(--accent); }
+.statusCancelado { background: rgba(244, 63, 94, 0.08); color: var(--red); }
+.statusCancelado::before { background: var(--red); }
+.statusAtivo { background: rgba(16, 185, 129, 0.08); color: var(--accent2); }
+.statusAtivo::before { background: var(--accent); }
+.statusEsgotado { background: rgba(244, 63, 94, 0.08); color: var(--red); }
+.statusEsgotado::before { background: var(--red); }
+.statusBaixo { background: var(--gold-glow); color: var(--gold); }
+.statusBaixo::before { background: var(--gold); }
+.statusVIP { background: var(--gold-glow); color: var(--gold); }
+.statusVIP::before { background: var(--gold); }
+.statusNovo { background: rgba(34, 211, 238, 0.08); color: var(--cyan); }
+.statusNovo::before { background: var(--cyan); }
+
+/* ========== PAGE CONTENT ========== */
+.fullCard {
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  transition: border-color 0.2s;
+}
+
+.fullCard:hover { border-color: var(--border2); }
+
+/* ========== SETTINGS PAGE ========== */
+.settingsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.settingItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settingItem:last-child { border-bottom: none; }
+
+.settingLabel {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.settingDesc {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.toggle {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--bg4);
+  position: relative;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s;
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--muted);
+  top: 3px;
+  left: 3px;
+  transition: all 0.2s;
+}
+
+.toggleOn {
+  background: var(--accent);
+}
+
+.toggleOn::after {
+  left: 23px;
+  background: #fff;
+}
+
+/* ========== CLIENT AVATAR ========== */
+.clientRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.clientAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--bg4), var(--bg3));
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1200px) {
   .kpiGrid { grid-template-columns: repeat(2, 1fr); }
