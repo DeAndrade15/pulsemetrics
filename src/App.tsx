@@ -1159,10 +1159,11 @@ function AdminPage({ profiles, loading, onSetPlano }: {
   )
 }
 
-function ConfigPage({ isDemo, user, userPlan, storeSettings, onSaveStore, team, onInvite, onRemoveMember, onSignOut }: {
+function ConfigPage({ isDemo, user, userPlan, profileName, storeSettings, onSaveStore, team, onInvite, onRemoveMember, onSignOut }: {
   isDemo: boolean
-  user: { email?: string; user_metadata?: { nome?: string } } | null
+  user: { email?: string; user_metadata?: { nome?: string; full_name?: string; name?: string } } | null
   userPlan: 'starter' | 'business'
+  profileName?: string | null
   storeSettings: { store_name: string; store_slug: string | null; description: string | null; logo_url: string | null; whatsapp: string | null; instagram: string | null; show_prices: boolean; catalog_active: boolean; low_stock_threshold: number } | null
   onSaveStore: (data: Record<string, unknown>) => void
   team: { id: string; member_email: string; member_name: string; role: string }[]
@@ -1200,7 +1201,7 @@ function ConfigPage({ isDemo, user, userPlan, storeSettings, onSaveStore, team, 
         <div className={styles.cardHeader}><h3 className={styles.cardTitle}>Perfil</h3></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {[
-            { label: 'Nome', value: user?.user_metadata?.nome || 'Visitante Demo' },
+            { label: 'Nome', value: profileName || user?.user_metadata?.nome || user?.user_metadata?.full_name || user?.user_metadata?.name || 'Visitante Demo' },
             { label: 'Email', value: user?.email || 'demo@pulsemetrics.com' },
             { label: 'Plano', value: isDemo ? 'Demo' : (userPlan === 'business' ? 'Business' : 'Starter (Gratuito)') },
           ].map(f => (
@@ -1468,7 +1469,7 @@ export default function App() {
           )}
         </nav>
         <div className={styles.sidebarFooter}>
-          <div className={styles.avatar}>{user ? initials(user.user_metadata?.nome || user.email || 'U') : 'DM'}</div>
+          <div className={styles.avatar}>{user ? initials(profile?.nome || user.user_metadata?.nome || user.user_metadata?.full_name || user.user_metadata?.name || user.email || 'U') : 'DM'}</div>
         </div>
       </aside>
 
@@ -1522,7 +1523,7 @@ export default function App() {
         {page === 'pedidos' && <VendasPage isDemo={isDemo} data={isDemo ? demoOrdersFormatted : pedidos} clientes={clientes.map(c => ({ id: c.id, nome: c.nome, telefone: c.telefone }))} produtos={produtos.map(p => ({ id: p.id, nome: p.nome, preco: p.preco, estoque: p.estoque }))} storeName={storeSettings?.store_name} onAdd={isDemo ? undefined : addPedidoLimited} onEdit={isDemo ? undefined : (id, d) => updatePedido(id, { cliente_nome: d.cliente_nome, cliente_id: d.cliente_id || undefined, itens: Number(d.itens), valor: Number(d.valor), valor_pago: Number(d.valor_pago || 0), pagamento: d.pagamento as 'Cartão' | 'PIX' | 'Boleto' | 'Dinheiro' | 'Fiado', status: d.status as 'Pago' | 'Pendente' | 'Atrasado' | 'Parcial' | 'Cancelado', data_vencimento: d.data_vencimento || undefined, observacao: d.observacao || undefined })} onMarkPaid={isDemo ? undefined : (id, valor) => updatePedido(id, { valor_pago: valor, status: 'Pago' })} onDelete={isDemo ? undefined : removePedido} onExport={isDemo ? undefined : () => exportToCSV(pedidos.map(p => ({ codigo: p.codigo, cliente: p.cliente_nome, itens: p.itens, valor: p.valor, valor_pago: p.valor_pago, pagamento: p.pagamento, status: p.status, vencimento: p.data_vencimento || '', data: p.created_at })), 'vendas')} />}
         {page === 'produtos' && <ProdutosPage isDemo={isDemo} data={isDemo ? demoProdutosFormatted : produtos} categorias={categoriasNomes} onAdd={isDemo ? undefined : addProdutoLimited} onEdit={isDemo ? undefined : (id, d) => updateProduto(id, { nome: d.nome, categoria: d.categoria, preco: Number(d.preco), estoque: Number(d.estoque), vendidos: Number(d.vendidos), imagem_url: d.imagem_url || undefined, status: d.status as 'Ativo' | 'Esgotado' | 'Baixo' })} onDelete={isDemo ? undefined : removeProduto} onExport={isDemo ? undefined : () => exportToCSV(produtos.map(p => ({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, vendidos: p.vendidos, status: p.status })), 'produtos')} />}
         {page === 'clientes' && <ClientesPage isDemo={isDemo} data={isDemo ? demoClientesFormatted : clientes} onAdd={isDemo ? undefined : addClienteLimited} onEdit={isDemo ? undefined : (id, d) => updateCliente(id, { nome: d.nome, email: d.email, telefone: d.telefone || undefined, pedidos: Number(d.pedidos), gasto_total: Number(d.gasto_total), status: d.status as 'VIP' | 'Ativo' | 'Novo' })} onDelete={isDemo ? undefined : removeCliente} onExport={isDemo ? undefined : () => exportToCSV(clientes.map(c => ({ nome: c.nome, telefone: c.telefone || '', email: c.email, pedidos: c.pedidos, gasto_total: c.gasto_total, status: c.status })), 'clientes')} />}
-        {page === 'config' && <ConfigPage isDemo={isDemo} user={user} userPlan={userPlan} storeSettings={storeSettings} onSaveStore={(d) => upsertStore(d as Record<string, unknown>)} team={team} onInvite={inviteTeam} onRemoveMember={removeTeamMember} onSignOut={handleSignOut} />}
+        {page === 'config' && <ConfigPage isDemo={isDemo} user={user} userPlan={userPlan} profileName={profile?.nome} storeSettings={storeSettings} onSaveStore={(d) => upsertStore(d as Record<string, unknown>)} team={team} onInvite={inviteTeam} onRemoveMember={removeTeamMember} onSignOut={handleSignOut} />}
         {page === 'admin' && isAdmin && <AdminPage profiles={allProfiles} loading={profilesLoading} onSetPlano={setUserPlano} />}
       </main>
     </div>
