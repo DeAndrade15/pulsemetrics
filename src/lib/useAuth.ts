@@ -80,10 +80,11 @@ export function useAuth() {
       if (!res.ok) return { error: { message: json.error_description || json.msg || 'Email ou senha incorretos' } }
 
       // Set session in supabase client
-      await supabase.auth.setSession({
+      const { data } = await supabase.auth.setSession({
         access_token: json.access_token,
         refresh_token: json.refresh_token,
       })
+      if (data.session?.user) setUser(data.session.user)
       return { error: null }
     } catch (err) {
       return { error: err }
