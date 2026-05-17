@@ -359,6 +359,25 @@ function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData, ped
     return [...produtos].sort((a, b) => (a.vendidos || 0) - (b.vendidos || 0)).slice(0, 5)
   }, [produtos, isDemo])
 
+  // Vendas por categoria (calculadas a partir dos produtos cadastrados)
+  const categoriasReais = useMemo(() => {
+    if (isDemo) return null
+    const palette = ['#10b981', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#22d3ee', '#f97316', '#84cc16']
+    const map = new Map<string, number>()
+    pedidos.forEach(p => {
+      if (p.status === 'Cancelado' || !p.produto_id) return
+      const prod = produtos.find(pr => pr.id === p.produto_id)
+      const cat = prod?.categoria || 'Outros'
+      map.set(cat, (map.get(cat) || 0) + p.valor)
+    })
+    const total = Array.from(map.values()).reduce((s, v) => s + v, 0)
+    if (total === 0) return []
+    const entries = Array.from(map.entries())
+      .map(([name, valor], i) => ({ name, valor, value: Math.round((valor / total) * 100), color: palette[i % palette.length] }))
+      .sort((a, b) => b.valor - a.valor)
+    return entries
+  }, [pedidos, produtos, isDemo])
+
   return (
     <>
       {/* Resumo financeiro principal */}
@@ -453,17 +472,32 @@ function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData, ped
         </div>
         <div className={styles.card}>
           <div className={styles.cardHeader}><h3 className={styles.cardTitle}>Vendas por Categoria</h3></div>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart><Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={3} dataKey="value" strokeWidth={0}>{categoryData.map((entry, i) => <Cell key={i} fill={entry.color} />)}</Pie><Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value}%`, 'Participação']} /></PieChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-            {categoryData.map((c) => (
-              <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#b0b4c0' }}><span style={{ width: 8, height: 8, borderRadius: 3, background: c.color, display: 'inline-block' }} />{c.name}</span>
-                <span style={{ fontSize: '0.8rem', fontFamily: 'Space Grotesk', fontWeight: 600, color: '#eef0f6' }}>{c.value}%</span>
-              </div>
-            ))}
-          </div>
+          {(() => {
+            const dataPie = isDemo ? categoryData : (categoriasReais || [])
+            if (!isDemo && dataPie.length === 0) {
+              return (
+                <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                  Nenhuma venda com produto vinculado ainda.<br />
+                  <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>Registre vendas selecionando um produto pra ver o gráfico.</span>
+                </div>
+              )
+            }
+            return (
+              <>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart><Pie data={dataPie} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={3} dataKey="value" strokeWidth={0}>{dataPie.map((entry, i) => <Cell key={i} fill={entry.color} />)}</Pie><Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value}%`, 'Participação']} /></PieChart>
+                </ResponsiveContainer>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                  {dataPie.map((c) => (
+                    <div key={c.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#b0b4c0' }}><span style={{ width: 8, height: 8, borderRadius: 3, background: c.color, display: 'inline-block' }} />{c.name}</span>
+                      <span style={{ fontSize: '0.8rem', fontFamily: 'Space Grotesk', fontWeight: 600, color: '#eef0f6' }}>{c.value}%</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
+          })()}
         </div>
       </div>
 
