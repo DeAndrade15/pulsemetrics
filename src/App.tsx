@@ -3,7 +3,7 @@ import {
   BarChart3, ShoppingCart, Users, DollarSign, TrendingUp,
   LayoutDashboard, Package, Settings, Download,
   ChevronUp, ChevronDown, Activity, LogOut, Plus, Trash2, Pencil,
-  Search, Bell, Menu, X, Store, UserPlus, AlertTriangle, Globe, Link2
+  Search, Bell, Menu, X, Store, UserPlus, AlertTriangle, Globe, Link2, Shield
 } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -15,7 +15,7 @@ import {
   allOrders as demoOrders, allProducts as demoProducts, allClients as demoClients
 } from './data/mockData'
 import { useAuth } from './lib/useAuth'
-import { useProdutos, useClientes, usePedidos, useCategorias, useStoreSettings, useTeam, useNotifications, useKpis, exportToCSV } from './lib/useData'
+import { useProdutos, useClientes, usePedidos, useCategorias, useStoreSettings, useTeam, useNotifications, useKpis, useUserProfile, useAllProfiles, exportToCSV } from './lib/useData'
 import { checkLimit, getLimitMessage, getUserPlan } from './lib/plans'
 import type { Pedido, Produto } from './lib/types'
 import { Auth } from './components/Auth'
@@ -24,7 +24,7 @@ import { PublicCatalog } from './components/PublicCatalog'
 import { TermsPage, PrivacyPage, ContactPage } from './components/LegalPages'
 import styles from './App.module.css'
 
-type Page = 'dashboard' | 'analytics' | 'pedidos' | 'produtos' | 'clientes' | 'config'
+type Page = 'dashboard' | 'analytics' | 'pedidos' | 'produtos' | 'clientes' | 'config' | 'admin'
 
 const iconMap: Record<string, React.ReactNode> = {
   'dollar-sign': <DollarSign size={20} />,
@@ -1044,6 +1044,121 @@ function ClientesPage({ isDemo, data, onAdd, onEdit, onDelete, onExport }: { isD
 }
 
 // ===== CONFIG PAGE =====
+// ===== ADMIN PAGE =====
+function AdminPage({ profiles, loading, onSetPlano }: {
+  profiles: { id: string; email: string; nome: string | null; plano: 'starter' | 'business'; is_admin: boolean; created_at: string }[]
+  loading: boolean
+  onSetPlano: (id: string, plano: 'starter' | 'business') => Promise<{ error: unknown }>
+}) {
+  const [search, setSearch] = useState('')
+  const [updating, setUpdating] = useState<string | null>(null)
+
+  const filtered = useMemo(() => {
+    if (!search) return profiles
+    const q = search.toLowerCase()
+    return profiles.filter(p => (p.email || '').toLowerCase().includes(q) || (p.nome || '').toLowerCase().includes(q))
+  }, [profiles, search])
+
+  const total = profiles.length
+  const totalBusiness = profiles.filter(p => p.plano === 'business').length
+  const totalStarter = total - totalBusiness
+  const last7 = profiles.filter(p => {
+    const d = new Date(p.created_at)
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7)
+    return d >= cutoff
+  }).length
+
+  const handleTogglePlano = async (id: string, current: 'starter' | 'business') => {
+    setUpdating(id)
+    await onSetPlano(id, current === 'business' ? 'starter' : 'business')
+    setUpdating(null)
+  }
+
+  return (
+    <>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>Total de Contas</div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: '1.7rem', fontWeight: 700, color: 'var(--white)', marginTop: 6 }}>{total}</div>
+        </div>
+        <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.04))', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 14, padding: '18px 20px' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>Business</div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: '1.7rem', fontWeight: 700, color: 'var(--gold)', marginTop: 6 }}>{totalBusiness}</div>
+        </div>
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>Starter</div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: '1.7rem', fontWeight: 700, color: 'var(--white)', marginTop: 6 }}>{totalStarter}</div>
+        </div>
+        <div style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04))', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 14, padding: '18px 20px' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>Novos (7 dias)</div>
+          <div style={{ fontFamily: 'Space Grotesk', fontSize: '1.7rem', fontWeight: 700, color: 'var(--accent)', marginTop: 6 }}>{last7}</div>
+        </div>
+      </div>
+
+      <div className={styles.fullCard}>
+        <div className={styles.cardHeader}>
+          <h3 className={styles.cardTitle}>Contas</h3>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <SearchBar value={search} onChange={setSearch} placeholder="Buscar por nome ou email..." />
+        </div>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Carregando...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Nenhuma conta encontrada</div>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table>
+              <thead><tr><th>Nome</th><th>Email</th><th>Plano</th><th>Cadastro</th><th>Ações</th></tr></thead>
+              <tbody>
+                {filtered.map(p => (
+                  <tr key={p.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 600, color: '#eef0f6' }}>{p.nome || '—'}</span>
+                        {p.is_admin && <span style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--gold)', padding: '2px 8px', borderRadius: 5, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.4px' }}>ADMIN</span>}
+                      </div>
+                    </td>
+                    <td style={{ color: '#6b7084', fontSize: '0.82rem' }}>{p.email}</td>
+                    <td>
+                      <span style={{ background: p.plano === 'business' ? 'rgba(245,158,11,0.15)' : 'rgba(107,112,132,0.15)', color: p.plano === 'business' ? 'var(--gold)' : 'var(--muted)', padding: '4px 10px', borderRadius: 6, fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.4px' }}>
+                        {p.plano === 'business' ? 'BUSINESS' : 'STARTER'}
+                      </span>
+                    </td>
+                    <td style={{ color: '#6b7084', fontSize: '0.82rem' }}>{new Date(p.created_at).toLocaleDateString('pt-BR')}</td>
+                    <td>
+                      <button
+                        onClick={() => handleTogglePlano(p.id, p.plano)}
+                        disabled={updating === p.id || p.is_admin}
+                        title={p.is_admin ? 'Admins não podem ser alterados aqui' : ''}
+                        style={{
+                          background: p.plano === 'business' ? 'var(--bg3)' : 'var(--accent)',
+                          border: p.plano === 'business' ? '1px solid var(--border)' : 'none',
+                          color: p.plano === 'business' ? 'var(--text)' : '#fff',
+                          padding: '6px 14px',
+                          borderRadius: 8,
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: p.is_admin ? 'not-allowed' : 'pointer',
+                          opacity: p.is_admin ? 0.4 : 1,
+                          fontFamily: 'DM Sans'
+                        }}
+                      >
+                        {updating === p.id ? '...' : (p.plano === 'business' ? 'Rebaixar para Starter' : 'Promover para Business')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 function ConfigPage({ isDemo, user, userPlan, storeSettings, onSaveStore, team, onInvite, onRemoveMember, onSignOut }: {
   isDemo: boolean
   user: { email?: string; user_metadata?: { nome?: string } } | null
@@ -1220,6 +1335,7 @@ const pageTitles: Record<Page, { title: string; subtitle: string }> = {
   produtos: { title: 'Produtos', subtitle: 'Catálogo com fotos, preços e estoque' },
   clientes: { title: 'Clientes', subtitle: 'Base de clientes, telefone e histórico de compras' },
   config: { title: 'Configurações', subtitle: 'Preferências da conta, loja e equipe' },
+  admin: { title: 'Admin', subtitle: 'Gestão de contas e planos' },
 }
 
 // ===== MAIN APP =====
@@ -1256,6 +1372,9 @@ export default function App() {
   const { settings: storeSettings, upsert: upsertStore } = useStoreSettings(user?.id)
   const { members: team, invite: inviteTeam, remove: removeTeamMember } = useTeam(user?.id)
   const { unreadCount } = useNotifications(user?.id)
+  const { profile } = useUserProfile(user?.id)
+  const isAdmin = !!profile?.is_admin
+  const { profiles: allProfiles, loading: profilesLoading, setPlano: setUserPlano } = useAllProfiles(isAdmin)
   const liveKpis = useKpis(pedidos, clientes)
 
   const showDashboard = isDemo || !!user
@@ -1298,7 +1417,7 @@ export default function App() {
   const currentTopProducts = isDemo ? demoTopProducts : liveTopProducts
   const lowStockThreshold = storeSettings?.low_stock_threshold || 5
   const categoriasNomes = categorias.map(c => c.nome)
-  const userPlan = getUserPlan()
+  const userPlan = getUserPlan(profile)
 
   // Plan-limited add functions
   const addProdutoLimited = (d: Record<string, string>) => {
@@ -1342,6 +1461,11 @@ export default function App() {
               {item.icon}
             </button>
           ))}
+          {isAdmin && (
+            <button className={`${styles.navItem} ${page === 'admin' ? styles.navItemActive : ''}`} title="Admin" onClick={() => { setPage('admin'); setMobileNav(false) }} style={{ color: page === 'admin' ? 'var(--gold)' : '#f59e0b' }}>
+              <Shield size={20} />
+            </button>
+          )}
         </nav>
         <div className={styles.sidebarFooter}>
           <div className={styles.avatar}>{user ? initials(user.user_metadata?.nome || user.email || 'U') : 'DM'}</div>
@@ -1399,6 +1523,7 @@ export default function App() {
         {page === 'produtos' && <ProdutosPage isDemo={isDemo} data={isDemo ? demoProdutosFormatted : produtos} categorias={categoriasNomes} onAdd={isDemo ? undefined : addProdutoLimited} onEdit={isDemo ? undefined : (id, d) => updateProduto(id, { nome: d.nome, categoria: d.categoria, preco: Number(d.preco), estoque: Number(d.estoque), vendidos: Number(d.vendidos), imagem_url: d.imagem_url || undefined, status: d.status as 'Ativo' | 'Esgotado' | 'Baixo' })} onDelete={isDemo ? undefined : removeProduto} onExport={isDemo ? undefined : () => exportToCSV(produtos.map(p => ({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, vendidos: p.vendidos, status: p.status })), 'produtos')} />}
         {page === 'clientes' && <ClientesPage isDemo={isDemo} data={isDemo ? demoClientesFormatted : clientes} onAdd={isDemo ? undefined : addClienteLimited} onEdit={isDemo ? undefined : (id, d) => updateCliente(id, { nome: d.nome, email: d.email, telefone: d.telefone || undefined, pedidos: Number(d.pedidos), gasto_total: Number(d.gasto_total), status: d.status as 'VIP' | 'Ativo' | 'Novo' })} onDelete={isDemo ? undefined : removeCliente} onExport={isDemo ? undefined : () => exportToCSV(clientes.map(c => ({ nome: c.nome, telefone: c.telefone || '', email: c.email, pedidos: c.pedidos, gasto_total: c.gasto_total, status: c.status })), 'clientes')} />}
         {page === 'config' && <ConfigPage isDemo={isDemo} user={user} userPlan={userPlan} storeSettings={storeSettings} onSaveStore={(d) => upsertStore(d as Record<string, unknown>)} team={team} onInvite={inviteTeam} onRemoveMember={removeTeamMember} onSignOut={handleSignOut} />}
+        {page === 'admin' && isAdmin && <AdminPage profiles={allProfiles} loading={profilesLoading} onSetPlano={setUserPlano} />}
       </main>
     </div>
   )

@@ -309,6 +309,57 @@ export function useNotifications(userId: string | undefined) {
   return { notifications, unreadCount, markRead, markAllRead, refresh: fetch }
 }
 
+// ===== USER PROFILE =====
+export interface UserProfileRow {
+  id: string
+  email: string
+  nome: string | null
+  plano: 'starter' | 'business'
+  is_admin: boolean
+  created_at: string
+}
+
+export function useUserProfile(userId: string | undefined) {
+  const [profile, setProfile] = useState<UserProfileRow | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    if (!userId) { setLoading(false); return }
+    setLoading(true)
+    const { data } = await supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle()
+    setProfile(data)
+    setLoading(false)
+  }, [userId])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  return { profile, loading, refresh: fetch }
+}
+
+// ===== ADMIN: listar todos perfis =====
+export function useAllProfiles(isAdmin: boolean) {
+  const [profiles, setProfiles] = useState<UserProfileRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    if (!isAdmin) { setLoading(false); return }
+    setLoading(true)
+    const { data } = await supabase.from('user_profiles').select('*').order('created_at', { ascending: false })
+    setProfiles(data || [])
+    setLoading(false)
+  }, [isAdmin])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  const setPlano = async (id: string, plano: 'starter' | 'business') => {
+    const { error } = await supabase.from('user_profiles').update({ plano }).eq('id', id)
+    if (!error) await fetch()
+    return { error }
+  }
+
+  return { profiles, loading, setPlano, refresh: fetch }
+}
+
 // ===== KPIs calculados =====
 export function useKpis(pedidos: Pedido[], clientes: Cliente[]) {
   const receita = pedidos.filter(p => p.status !== 'Cancelado').reduce((s, p) => s + p.valor, 0)

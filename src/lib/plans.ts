@@ -20,10 +20,9 @@ export const PLANS: Record<string, PlanLimits> = {
   },
 }
 
-// For now everyone is on starter (until payment is integrated)
-export function getUserPlan(): 'starter' | 'business' {
-  // TODO: Check Stripe subscription status
-  return 'starter'
+// Read plan from user_profiles table (managed by admin or Stripe integration in the future)
+export function getUserPlan(profile?: { plano?: 'starter' | 'business' } | null): 'starter' | 'business' {
+  return profile?.plano === 'business' ? 'business' : 'starter'
 }
 
 export function checkLimit(plan: 'starter' | 'business', resource: keyof PlanLimits, currentCount: number): { allowed: boolean; limit: number; current: number } {
