@@ -1,21 +1,26 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
-import type { User, Session } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
+
+const SUPABASE_URL = 'https://bovarrgrrxmpsqupklhj.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvdmFycmdycnhtcHNxdXBrbGhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NTEyNzIsImV4cCI6MjA5NDUyNzI3Mn0.PC59LkRoMqsdpDezGUM1k4XaxiAQm65jIz7aiKu7bks'
+
+const authHeaders = {
+  'Content-Type': 'application/json',
+  'apikey': SUPABASE_KEY,
+}
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
       setUser(session?.user ?? null)
     })
 
@@ -23,28 +28,43 @@ export function useAuth() {
   }, [])
 
   const signInWithEmail = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error }
-  }
-
-  const signUpWithEmail = async (email: string, password: string, _nome: string) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://bovarrgrrxmpsqupklhj.supabase.co'}/auth/v1/signup`, {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvdmFycmdycnhtcHNxdXBrbGhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NTEyNzIsImV4cCI6MjA5NDUyNzI3Mn0.PC59LkRoMqsdpDezGUM1k4XaxiAQm65jIz7aiKu7bks',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          data: { nome: _nome },
-        }),
+        headers: authHeaders,
+        body: JSON.stringify({ email, password }),
       })
       const json = await res.json()
-      if (!res.ok) return { data: null, error: { message: json.msg || json.error_description || 'Erro ao criar conta' } }
-      // Refresh session
-      await supabase.auth.signInWithPassword({ email, password })
+      if (!res.ok) return { error: { message: json.error_description || json.msg || 'Email ou senha incorretos' } }
+
+      // Set session in supabase client
+      await supabase.auth.setSession({
+        access_token: json.access_token,
+        refresh_token: json.refresh_token,
+      })
+      return { error: null }
+    } catch (err) {
+      return { error: err }
+    }
+  }
+
+  const signUpWithEmail = async (email: string, password: string, nome: string) => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ email, password, data: { nome } }),
+      })
+      const json = await res.json()
+      if (!res.ok) return { data: null, error: { message: json.error_description || json.msg || 'Erro ao criar conta' } }
+
+      // If email confirmation is disabled, auto-login
+      if (json.access_token) {
+        await supabase.auth.setSession({
+          access_token: json.access_token,
+          refresh_token: json.refresh_token,
+        })
+      }
       return { data: json, error: null }
     } catch (err) {
       return { data: null, error: err }
@@ -63,5 +83,5 @@ export function useAuth() {
     await supabase.auth.signOut()
   }
 
-  return { user, session, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut }
+  return { user, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut }
 }
