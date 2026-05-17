@@ -6,17 +6,20 @@ interface AuthProps {
   onSignIn: (email: string, password: string) => Promise<{ error: unknown }>
   onSignUp: (email: string, password: string, nome: string) => Promise<{ data: unknown; error: unknown }>
   onGoogle: () => Promise<{ error: unknown }>
+  onResetPassword: (email: string) => Promise<{ error: unknown }>
   onDemo: () => void
 }
 
-export function Auth({ onSignIn, onSignUp, onGoogle, onDemo }: AuthProps) {
+export function Auth({ onSignIn, onSignUp, onGoogle, onResetPassword, onDemo }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true)
+  const [isForgot, setIsForgot] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [nome, setNome] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [emailSent, setEmailSent] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,6 +44,86 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onDemo }: AuthProps) {
       }
     }
     setLoading(false)
+  }
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const { error } = await onResetPassword(email)
+    if (error) {
+      setError(typeof error === 'object' && error !== null && 'message' in error
+        ? (error as { message: string }).message
+        : 'Erro ao enviar email de recuperação')
+    } else {
+      setResetSent(true)
+    }
+    setLoading(false)
+  }
+
+  // Password reset sent screen
+  if (resetSent) {
+    return (
+      <div className={styles.overlay}>
+        <div className={styles.card}>
+          <div className={styles.brand}>
+            <div className={styles.brandIcon}><Activity size={22} /></div>
+            <span className={styles.brandName}>PulseMetrics</span>
+          </div>
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ width: 64, height: 64, borderRadius: 16, background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <Mail size={28} color="#10b981" />
+            </div>
+            <h2 className={styles.title}>Email enviado!</h2>
+            <p className={styles.subtitle} style={{ marginBottom: 16 }}>
+              Enviamos um link de recuperação para
+            </p>
+            <p style={{ fontFamily: 'Space Grotesk', fontWeight: 600, fontSize: '1rem', color: 'var(--white)', marginBottom: 24, padding: '10px 16px', background: 'var(--bg3)', borderRadius: 10, border: '1px solid var(--border)', display: 'inline-block' }}>
+              {email}
+            </p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.6, marginBottom: 28 }}>
+              Clique no link para redefinir sua senha.<br />
+              Verifique também a pasta de spam.
+            </p>
+            <button className={styles.btnSubmit} onClick={() => { setResetSent(false); setIsForgot(false); setError('') }} style={{ maxWidth: 280, margin: '0 auto' }}>
+              <ArrowLeft size={16} style={{ marginRight: 6 }} />
+              Voltar para o login
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Forgot password form
+  if (isForgot) {
+    return (
+      <div className={styles.overlay}>
+        <div className={styles.card}>
+          <div className={styles.brand}>
+            <div className={styles.brandIcon}><Activity size={22} /></div>
+            <span className={styles.brandName}>PulseMetrics</span>
+          </div>
+          <h2 className={styles.title}>Recuperar senha</h2>
+          <p className={styles.subtitle}>Digite seu email para receber o link de recuperação</p>
+          {error && <div className={styles.error}>{error}</div>}
+          <form className={styles.form} onSubmit={handleForgot}>
+            <div className={styles.field}>
+              <label>Email</label>
+              <input type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <button type="submit" className={styles.btnSubmit} disabled={loading}>
+              {loading ? 'Enviando...' : 'Enviar link de recuperação'}
+            </button>
+          </form>
+          <div className={styles.toggle}>
+            <button onClick={() => { setIsForgot(false); setError('') }}>
+              Voltar para o login
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Email confirmation screen
@@ -155,6 +238,12 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onDemo }: AuthProps) {
               minLength={6}
             />
           </div>
+
+          {isLogin && (
+            <button type="button" onClick={() => { setIsForgot(true); setError('') }} style={{ alignSelf: 'flex-end', background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans', padding: 0, marginTop: -8 }}>
+              Esqueci minha senha
+            </button>
+          )}
 
           <button type="submit" className={styles.btnSubmit} disabled={loading}>
             {loading ? 'Carregando...' : isLogin ? 'Entrar' : 'Criar conta'}

@@ -1,13 +1,41 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>pulsemetrics</title>
+    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="description" content="PulseMetrics — Plataforma completa de gestão para seu negócio. Dashboard, catálogo público, controle de estoque e pedidos." />
+
+    <!-- Open Graph / WhatsApp -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="PulseMetrics — Gestão Inteligente" />
+    <meta property="og:description" content="Dashboard completo, catálogo público, gestão de estoque e pedidos. Tudo em um só lugar." />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:url" content="https://pulsemetrics-sable.vercel.app" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PulseMetrics — Gestão Inteligente" />
+    <meta name="twitter:description" content="Dashboard completo, catálogo público, gestão de estoque e pedidos." />
+    <meta name="twitter:image" content="/og-image.png" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <title>PulseMetrics — Gestão Inteligente</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Register service worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>

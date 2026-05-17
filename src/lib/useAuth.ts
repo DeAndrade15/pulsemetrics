@@ -15,8 +15,34 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Handle email confirmation redirect (tokens in URL hash)
+    // Handle email confirmation redirect
+    // Supabase PKCE flow: ?code=... in query params
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('code')
+    const tokenHash = url.searchParams.get('token_hash')
+    const type = url.searchParams.get('type')
+
+    // Also check hash-based tokens (legacy flow)
     const hash = window.location.hash
+
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ data }) => {
+        setUser(data.session?.user ?? null)
+        setLoading(false)
+        window.history.replaceState(null, '', window.location.pathname)
+      })
+      return
+    }
+
+    if (tokenHash && type) {
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: type as any }).then(({ data }) => {
+        setUser(data.session?.user ?? null)
+        setLoading(false)
+        window.history.replaceState(null, '', window.location.pathname)
+      })
+      return
+    }
+
     if (hash && hash.includes('access_token')) {
       const params = new URLSearchParams(hash.substring(1))
       const accessToken = params.get('access_token')
@@ -25,7 +51,6 @@ export function useAuth() {
         supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ data }) => {
           setUser(data.session?.user ?? null)
           setLoading(false)
-          // Clean URL
           window.history.replaceState(null, '', window.location.pathname)
         })
         return
@@ -96,9 +121,26 @@ export function useAuth() {
     return { error }
   }
 
+  const resetPassword = async (email: string) => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ email }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        return { error: { message: json.error_description || json.msg || 'Erro ao enviar email' } }
+      }
+      return { error: null }
+    } catch (err) {
+      return { error: err }
+    }
+  }
+
   const signOut = async () => {
     await supabase.auth.signOut()
   }
 
-  return { user, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut }
+  return { user, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, resetPassword, signOut }
 }
