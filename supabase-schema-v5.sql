@@ -33,7 +33,7 @@ create policy "insert own profile" on public.user_profiles for insert
   with check (auth.uid() = id);
 
 -- Trigger: cria profile automaticamente em todo novo signup
--- Email "dougla1508@gmail.com" vira admin automaticamente
+-- Email "REDACTED_ADMIN_EMAIL" vira admin automaticamente
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer as $$
 begin
@@ -43,7 +43,7 @@ begin
     new.email,
     coalesce(new.raw_user_meta_data->>'nome', new.email),
     'starter',
-    lower(new.email) = 'dougla1508@gmail.com'
+    lower(new.email) = 'REDACTED_ADMIN_EMAIL'
   )
   on conflict (id) do nothing;
   return new;
@@ -61,6 +61,6 @@ select
   u.email,
   coalesce(u.raw_user_meta_data->>'nome', u.email),
   'starter',
-  lower(u.email) = 'dougla1508@gmail.com'
+  lower(u.email) = 'REDACTED_ADMIN_EMAIL'
 from auth.users u
 where u.id not in (select id from public.user_profiles);

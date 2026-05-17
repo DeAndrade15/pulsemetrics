@@ -9,7 +9,7 @@ update public.user_profiles set plano = 'business' where is_admin = true;
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer as $$
 declare
-  is_admin_flag boolean := lower(new.email) = 'dougla1508@gmail.com';
+  is_admin_flag boolean := lower(new.email) = 'REDACTED_ADMIN_EMAIL';
 begin
   insert into public.user_profiles (id, email, nome, plano, is_admin)
   values (
