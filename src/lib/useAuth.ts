@@ -28,15 +28,27 @@ export function useAuth() {
   }
 
   const signUpWithEmail = async (email: string, password: string, _nome: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-    // Update user metadata after signup (avoids header encoding issues with accented chars)
-    if (data?.user && !error) {
-      await supabase.auth.updateUser({ data: { nome: _nome } })
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://bovarrgrrxmpsqupklhj.supabase.co'}/auth/v1/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvdmFycmdycnhtcHNxdXBrbGhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NTEyNzIsImV4cCI6MjA5NDUyNzI3Mn0.PC59LkRoMqsdpDezGUM1k4XaxiAQm65jIz7aiKu7bks',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          data: { nome: _nome },
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) return { data: null, error: { message: json.msg || json.error_description || 'Erro ao criar conta' } }
+      // Refresh session
+      await supabase.auth.signInWithPassword({ email, password })
+      return { data: json, error: null }
+    } catch (err) {
+      return { data: null, error: err }
     }
-    return { data, error }
   }
 
   const signInWithGoogle = async () => {
