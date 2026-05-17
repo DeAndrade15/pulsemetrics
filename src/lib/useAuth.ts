@@ -2,13 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import type { User } from '@supabase/supabase-js'
 
-const SUPABASE_URL = 'https://bovarrgrrxmpsqupklhj.supabase.co'
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvdmFycmdycnhtcHNxdXBrbGhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NTEyNzIsImV4cCI6MjA5NDUyNzI3Mn0.PC59LkRoMqsdpDezGUM1k4XaxiAQm65jIz7aiKu7bks'
-
-const authHeaders = {
-  'Content-Type': 'application/json',
-  'apikey': SUPABASE_KEY,
-}
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -70,59 +63,26 @@ export function useAuth() {
   }, [])
 
   const signInWithEmail = async (email: string, password: string) => {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ email, password }),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        // Handle unconfirmed email
-        if (json.error === 'invalid_grant' && json.error_description?.includes('not confirmed')) {
-          return { error: { message: 'Email ainda não confirmado. Verifique sua caixa de entrada.' } }
-        }
-        return { error: { message: json.error_description || json.msg || json.error || 'Email ou senha incorretos' } }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      if (error.message?.includes('not confirmed')) {
+        return { error: { message: 'Email ainda não confirmado. Verifique sua caixa de entrada.' } }
       }
-
-      if (!json.access_token) {
-        return { error: { message: 'Erro inesperado no login. Tente novamente.' } }
-      }
-
-      // Set session in supabase client
-      const { data, error } = await supabase.auth.setSession({
-        access_token: json.access_token,
-        refresh_token: json.refresh_token,
-      })
-      if (error) return { error: { message: error.message } }
-      if (data.session?.user) setUser(data.session.user)
-      return { error: null }
-    } catch (err) {
-      return { error: { message: 'Erro de conexão. Tente novamente.' } }
+      return { error: { message: error.message || 'Email ou senha incorretos' } }
     }
+    if (data.session?.user) setUser(data.session.user)
+    return { error: null }
   }
 
   const signUpWithEmail = async (email: string, password: string, nome: string) => {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ email, password, data: { nome } }),
-      })
-      const json = await res.json()
-      if (!res.ok) return { data: null, error: { message: json.error_description || json.msg || 'Erro ao criar conta' } }
-
-      // If email confirmation is disabled, auto-login
-      if (json.access_token) {
-        await supabase.auth.setSession({
-          access_token: json.access_token,
-          refresh_token: json.refresh_token,
-        })
-      }
-      return { data: json, error: null }
-    } catch (err) {
-      return { data: null, error: err }
-    }
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { nome } }
+    })
+    if (error) return { data: null, error: { message: error.message || 'Erro ao criar conta' } }
+    if (data.session?.user) setUser(data.session.user)
+    return { data, error: null }
   }
 
   const signInWithGoogle = async () => {
@@ -134,20 +94,11 @@ export function useAuth() {
   }
 
   const resetPassword = async (email: string) => {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ email }),
-      })
-      if (!res.ok) {
-        const json = await res.json()
-        return { error: { message: json.error_description || json.msg || 'Erro ao enviar email' } }
-      }
-      return { error: null }
-    } catch (err) {
-      return { error: err }
-    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin
+    })
+    if (error) return { error: { message: error.message || 'Erro ao enviar email' } }
+    return { error: null }
   }
 
   const signOut = async () => {
