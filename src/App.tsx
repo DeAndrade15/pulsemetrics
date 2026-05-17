@@ -17,6 +17,7 @@ import {
 import { useAuth } from './lib/useAuth'
 import { useProdutos, useClientes, usePedidos, useCategorias, useStoreSettings, useTeam, useNotifications, useKpis, exportToCSV } from './lib/useData'
 import { checkLimit, getLimitMessage, getUserPlan } from './lib/plans'
+import type { Pedido, Produto } from './lib/types'
 import { Auth } from './components/Auth'
 import { LandingPage } from './components/LandingPage'
 import { PublicCatalog } from './components/PublicCatalog'
@@ -72,13 +73,24 @@ const tooltipStyle = {
 const initials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2)
 
 // ===== MODAL ADD =====
-function AddModal({ title, fields, onSubmit, onClose }: {
+type FieldOption = string | { value: string; label: string }
+type ModalField = { name: string; label: string; type?: string; options?: FieldOption[]; placeholder?: string; optional?: boolean; readOnly?: boolean }
+
+function AddModal({ title, fields, onSubmit, onClose, onChange, initialData }: {
   title: string
-  fields: { name: string; label: string; type?: string; options?: string[]; placeholder?: string }[]
+  fields: ModalField[]
   onSubmit: (data: Record<string, string>) => void
   onClose: () => void
+  onChange?: (data: Record<string, string>, setForm: (d: Record<string, string>) => void) => void
+  initialData?: Record<string, string>
 }) {
-  const [form, setForm] = useState<Record<string, string>>({})
+  const [form, setForm] = useState<Record<string, string>>(initialData || {})
+
+  const updateField = (name: string, value: string) => {
+    const next = { ...form, [name]: value }
+    setForm(next)
+    if (onChange) onChange(next, setForm)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -88,19 +100,23 @@ function AddModal({ title, fields, onSubmit, onClose }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <h3 style={{ fontFamily: 'Space Grotesk', fontSize: '1.1rem', fontWeight: 700, color: 'var(--white)', marginBottom: 20 }}>{title}</h3>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {fields.map(f => (
             <div key={f.name}>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 5 }}>{f.label}</label>
               {f.options ? (
-                <select value={form[f.name] || ''} onChange={e => setForm({ ...form, [f.name]: e.target.value })} required style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', color: 'var(--white)', fontFamily: 'DM Sans', fontSize: '0.88rem', outline: 'none' }}>
+                <select value={form[f.name] || ''} onChange={e => updateField(f.name, e.target.value)} required={!f.optional} style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', color: 'var(--white)', fontFamily: 'DM Sans', fontSize: '0.88rem', outline: 'none' }}>
                   <option value="">Selecione</option>
-                  {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                  {f.options.map(o => {
+                    const value = typeof o === 'string' ? o : o.value
+                    const label = typeof o === 'string' ? o : o.label
+                    return <option key={value} value={value}>{label}</option>
+                  })}
                 </select>
               ) : (
-                <input type={f.type || 'text'} placeholder={f.placeholder} value={form[f.name] || ''} onChange={e => setForm({ ...form, [f.name]: e.target.value })} required style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', color: 'var(--white)', fontFamily: 'DM Sans', fontSize: '0.88rem', outline: 'none' }} />
+                <input type={f.type || 'text'} placeholder={f.placeholder} value={form[f.name] || ''} onChange={e => updateField(f.name, e.target.value)} required={!f.optional} readOnly={f.readOnly} style={{ width: '100%', background: f.readOnly ? 'var(--bg)' : 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', color: 'var(--white)', fontFamily: 'DM Sans', fontSize: '0.88rem', outline: 'none' }} />
               )}
             </div>
           ))}
@@ -200,14 +216,100 @@ function LowStockAlert({ produtos, threshold }: { produtos: { nome: string; esto
 }
 
 // ===== DASHBOARD PAGE =====
-function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData }: {
+function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData, pedidos, produtos, onGoToVendas }: {
   isDemo: boolean
   kpiData: typeof demoKpis
   transactionsData: typeof demoTransactions
   topProductsData: typeof demoTopProducts
+  pedidos: Pedido[]
+  produtos: Produto[]
+  onGoToVendas: () => void
 }) {
+  // Calcular devedores reais
+  const devedores = useMemo(() => {
+    if (isDemo) return []
+    return pedidos
+      .filter(p => p.status !== 'Cancelado' && p.status !== 'Pago')
+      .map(p => ({
+        id: p.id,
+        codigo: p.codigo,
+        cliente: p.cliente_nome,
+        valor: p.valor,
+        pago: p.valor_pago || 0,
+        deve: p.valor - (p.valor_pago || 0),
+        vencimento: p.data_vencimento,
+        status: p.status,
+      }))
+      .filter(d => d.deve > 0)
+      .sort((a, b) => b.deve - a.deve)
+  }, [pedidos, isDemo])
+
+  const totalAReceber = devedores.reduce((s, d) => s + d.deve, 0)
+  const totalRecebido = isDemo ? 0 : pedidos.reduce((s, p) => s + (p.valor_pago || 0), 0)
+
+  // Menos vendidos (apenas produtos cadastrados, ordenados por menos vendas)
+  const menosVendidos = useMemo(() => {
+    if (isDemo) return []
+    return [...produtos].sort((a, b) => (a.vendidos || 0) - (b.vendidos || 0)).slice(0, 5)
+  }, [produtos, isDemo])
+
   return (
     <>
+      {/* Resumo financeiro principal */}
+      {!isDemo && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+          <div style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04))', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 14, padding: '18px 20px' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>Recebido</div>
+            <div style={{ fontFamily: 'Space Grotesk', fontSize: '1.7rem', fontWeight: 700, color: 'var(--accent)', marginTop: 6 }}>R$ {totalRecebido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          </div>
+          <div onClick={onGoToVendas} style={{ cursor: 'pointer', background: totalAReceber > 0 ? 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.04))' : 'var(--bg2)', border: `1px solid ${totalAReceber > 0 ? 'rgba(245,158,11,0.3)' : 'var(--border)'}`, borderRadius: 14, padding: '18px 20px' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>A Receber</div>
+            <div style={{ fontFamily: 'Space Grotesk', fontSize: '1.7rem', fontWeight: 700, color: totalAReceber > 0 ? 'var(--gold)' : 'var(--white)', marginTop: 6 }}>R$ {totalAReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>{devedores.length} {devedores.length === 1 ? 'cliente' : 'clientes'} devendo</div>
+          </div>
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>Vendas (total)</div>
+            <div style={{ fontFamily: 'Space Grotesk', fontSize: '1.7rem', fontWeight: 700, color: 'var(--white)', marginTop: 6 }}>R$ {(totalRecebido + totalAReceber).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>{pedidos.filter(p => p.status !== 'Cancelado').length} vendas</div>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de devedores em destaque */}
+      {!isDemo && devedores.length > 0 && (
+        <div className={styles.fullCard} style={{ marginBottom: 16 }}>
+          <div className={styles.cardHeader}>
+            <h3 className={styles.cardTitle}>Clientes Devendo</h3>
+            <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{devedores.length} {devedores.length === 1 ? 'pendência' : 'pendências'}</span>
+          </div>
+          <div className={styles.tableWrap}>
+            <table>
+              <thead><tr><th>Cliente</th><th>Código</th><th>Total</th><th>Pago</th><th>Deve</th><th>Vencimento</th><th>Status</th></tr></thead>
+              <tbody>
+                {devedores.slice(0, 8).map(d => (
+                  <tr key={d.id}>
+                    <td style={{ fontWeight: 600, color: '#eef0f6' }}>{d.cliente}</td>
+                    <td style={{ fontFamily: 'Space Grotesk', fontSize: '0.82rem', color: 'var(--muted)' }}>{d.codigo}</td>
+                    <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600 }}>R$ {d.valor.toLocaleString('pt-BR')}</td>
+                    <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600, color: 'var(--accent)' }}>R$ {d.pago.toLocaleString('pt-BR')}</td>
+                    <td style={{ fontFamily: 'Space Grotesk', fontWeight: 700, color: 'var(--gold)' }}>R$ {d.deve.toLocaleString('pt-BR')}</td>
+                    <td style={{ color: '#6b7084', fontSize: '0.82rem' }}>{d.vencimento ? new Date(d.vencimento).toLocaleDateString('pt-BR') : '—'}</td>
+                    <td><span className={`${styles.statusBadge} ${statusMap[d.status]}`}>{d.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {devedores.length > 8 && (
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
+              <button onClick={onGoToVendas} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                Ver todos os {devedores.length} →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className={styles.kpiGrid}>
         {kpiData.map((kpi) => (
           <div key={kpi.label} className={styles.kpiCard}>
@@ -276,8 +378,10 @@ function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData }: {
           </div>
         </div>
         <div className={styles.card}>
-          <div className={styles.cardHeader}><h3 className={styles.cardTitle}>Top Produtos</h3></div>
-          {topProductsData.map((p, i) => (
+          <div className={styles.cardHeader}><h3 className={styles.cardTitle}>Mais Vendidos</h3></div>
+          {topProductsData.length === 0 ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>Nenhum produto vendido ainda</div>
+          ) : topProductsData.map((p, i) => (
             <div key={p.name} className={styles.productRow}>
               <div className={styles.productInfo}>
                 <div className={`${styles.productRank} ${rankClass[i] || styles.rankDefault}`}>{i + 1}</div>
@@ -288,6 +392,32 @@ function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData }: {
           ))}
         </div>
       </div>
+
+      {/* Menos vendidos */}
+      {!isDemo && menosVendidos.length > 0 && (
+        <div className={styles.fullCard} style={{ marginTop: 16 }}>
+          <div className={styles.cardHeader}>
+            <h3 className={styles.cardTitle}>Produtos com Menos Saída</h3>
+            <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Considere promover</span>
+          </div>
+          <div className={styles.tableWrap}>
+            <table>
+              <thead><tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Vendidos</th></tr></thead>
+              <tbody>
+                {menosVendidos.map(p => (
+                  <tr key={p.id}>
+                    <td style={{ fontWeight: 600, color: '#eef0f6' }}>{p.nome}</td>
+                    <td style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>{p.categoria}</td>
+                    <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600 }}>R$ {Number(p.preco).toLocaleString('pt-BR')}</td>
+                    <td style={{ fontFamily: 'Space Grotesk' }}>{p.estoque}</td>
+                    <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600, color: (p.vendidos || 0) === 0 ? 'var(--red)' : 'var(--text)' }}>{p.vendidos || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -457,7 +587,7 @@ function AnalyticsPage({ isDemo, pedidos, produtos }: { isDemo: boolean; pedidos
 }
 
 // ===== CRUD PAGES =====
-function VendasPage({ isDemo, data, clientes, onAdd, onEdit, onMarkPaid, onDelete, onExport }: { isDemo: boolean; data: { id: string; codigo: string; cliente_nome: string; itens: number; valor: number | string; valor_pago?: number; pagamento: string; status: string; data_vencimento?: string; observacao?: string; created_at: string }[]; clientes: { id: string; nome: string }[]; onAdd?: (d: Record<string, string>) => void; onEdit?: (id: string, d: Record<string, string>) => void; onMarkPaid?: (id: string, valor: number) => void; onDelete?: (id: string) => void; onExport?: () => void }) {
+function VendasPage({ isDemo, data, clientes, produtos, onAdd, onEdit, onMarkPaid, onDelete, onExport }: { isDemo: boolean; data: { id: string; codigo: string; cliente_nome: string; produto_nome?: string; itens: number; valor: number | string; valor_pago?: number; pagamento: string; status: string; data_vencimento?: string; observacao?: string; created_at: string }[]; clientes: { id: string; nome: string }[]; produtos: { id: string; nome: string; preco: number; estoque: number }[]; onAdd?: (d: Record<string, string>) => void; onEdit?: (id: string, d: Record<string, string>) => void; onMarkPaid?: (id: string, valor: number) => void; onDelete?: (id: string) => void; onExport?: () => void }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editItem, setEditItem] = useState<typeof data[0] | null>(null)
   const [search, setSearch] = useState('')
@@ -484,7 +614,8 @@ function VendasPage({ isDemo, data, clientes, onAdd, onEdit, onMarkPaid, onDelet
   const totalDevendo = totalVendas - totalRecebido
   const qtdPendentes = data.filter(o => o.status === 'Pendente' || o.status === 'Atrasado' || o.status === 'Parcial').length
 
-  const clienteOptions = clientes.map(c => c.nome)
+  const clienteOptions = clientes.map(c => ({ value: c.id, label: c.nome }))
+  const produtoOptions = produtos.map(p => ({ value: p.id, label: `${p.nome} — R$ ${p.preco.toLocaleString('pt-BR')} (${p.estoque} em estoque)` }))
 
   return (
     <>
@@ -539,7 +670,7 @@ function VendasPage({ isDemo, data, clientes, onAdd, onEdit, onMarkPaid, onDelet
         ) : (
           <div className={styles.tableWrap}>
             <table>
-              <thead><tr><th>Código</th><th>Cliente</th><th>Valor</th><th>Pago</th><th>Deve</th><th>Forma</th><th>Status</th><th>Data</th>{!isDemo && <th>Ações</th>}</tr></thead>
+              <thead><tr><th>Código</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Valor</th><th>Pago</th><th>Deve</th><th>Forma</th><th>Status</th><th>Data</th>{!isDemo && <th>Ações</th>}</tr></thead>
               <tbody>
                 {filtered.map((o) => {
                   const valor = typeof o.valor === 'number' ? o.valor : 0
@@ -549,6 +680,8 @@ function VendasPage({ isDemo, data, clientes, onAdd, onEdit, onMarkPaid, onDelet
                     <tr key={o.id}>
                       <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600, color: '#eef0f6', fontSize: '0.82rem' }}>{o.codigo}</td>
                       <td style={{ fontWeight: 600, color: '#eef0f6' }}>{o.cliente_nome}</td>
+                      <td style={{ color: 'var(--text)', fontSize: '0.82rem' }}>{o.produto_nome || '—'}</td>
+                      <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600 }}>{o.itens}</td>
                       <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600 }}>R$ {valor.toLocaleString('pt-BR')}</td>
                       <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600, color: 'var(--accent)' }}>R$ {pago.toLocaleString('pt-BR')}</td>
                       <td style={{ fontFamily: 'Space Grotesk', fontWeight: 600, color: deve > 0 ? 'var(--red)' : 'var(--accent)' }}>{deve > 0 ? `R$ ${deve.toLocaleString('pt-BR')}` : '-'}</td>
@@ -571,15 +704,39 @@ function VendasPage({ isDemo, data, clientes, onAdd, onEdit, onMarkPaid, onDelet
             </table>
           </div>
         )}
-        {showAdd && onAdd && <AddModal title="Nova Venda" fields={[
-          { name: 'cliente_nome', label: 'Cliente', options: clienteOptions.length > 0 ? clienteOptions : undefined, placeholder: 'Nome do cliente' },
-          { name: 'itens', label: 'Qtd Itens', type: 'number' },
-          { name: 'valor', label: 'Valor Total (R$)', type: 'number' },
-          { name: 'valor_pago', label: 'Valor Pago (R$)', type: 'number', placeholder: '0 se fiado' },
-          { name: 'pagamento', label: 'Forma de Pagamento', options: ['PIX', 'Dinheiro', 'Cartão', 'Fiado', 'Boleto'] },
-          { name: 'status', label: 'Status', options: ['Pago', 'Pendente', 'Parcial'] },
-          { name: 'observacao', label: 'Observação (opcional)', placeholder: 'Ex: vai pagar sexta' },
-        ]} onSubmit={onAdd} onClose={() => setShowAdd(false)} />}
+        {showAdd && onAdd && <AddModal title="Nova Venda"
+          initialData={{ itens: '1', valor_pago: '0', status: 'Pendente' }}
+          fields={[
+            { name: 'cliente_id', label: 'Cliente', options: clienteOptions, optional: clienteOptions.length === 0 },
+            { name: 'produto_id', label: 'Produto', options: produtoOptions, optional: produtoOptions.length === 0 },
+            { name: 'itens', label: 'Quantidade', type: 'number' },
+            { name: 'valor', label: 'Valor Total (R$)', type: 'number', placeholder: 'Calculado automaticamente' },
+            { name: 'valor_pago', label: 'Valor Já Pago (R$)', type: 'number', placeholder: '0 se ainda não pagou', optional: true },
+            { name: 'pagamento', label: 'Forma de Pagamento', options: ['PIX', 'Dinheiro', 'Cartão', 'Fiado', 'Boleto'] },
+            { name: 'status', label: 'Status', options: ['Pago', 'Pendente', 'Parcial'] },
+            { name: 'data_vencimento', label: 'Vencimento (se fiado)', type: 'date', optional: true },
+            { name: 'observacao', label: 'Observação', placeholder: 'Ex: vai pagar sexta', optional: true },
+          ]}
+          onChange={(form, setForm) => {
+            // Auto-calcula valor quando produto ou quantidade mudam
+            const prod = produtos.find(p => p.id === form.produto_id)
+            if (prod) {
+              const qtd = Number(form.itens) || 1
+              const novoValor = (prod.preco * qtd).toFixed(2)
+              if (form.valor !== novoValor) setForm({ ...form, valor: novoValor })
+            }
+          }}
+          onSubmit={(d) => {
+            // Enriquecer com cliente_nome e produto_nome a partir dos IDs
+            const cli = clientes.find(c => c.id === d.cliente_id)
+            const prod = produtos.find(p => p.id === d.produto_id)
+            onAdd({
+              ...d,
+              cliente_nome: cli?.nome || d.cliente_id || 'Avulso',
+              produto_nome: prod?.nome || '',
+            })
+          }}
+          onClose={() => setShowAdd(false)} />}
         {editItem && onEdit && <EditModal title="Editar Venda" fields={[
           { name: 'cliente_nome', label: 'Cliente' },
           { name: 'itens', label: 'Qtd Itens', type: 'number' },
@@ -1009,7 +1166,7 @@ export default function App() {
   const addPedidoLimited = (d: Record<string, string>) => {
     const check = checkLimit(userPlan, 'pedidosMes', pedidos.length)
     if (!check.allowed) { setLimitAlert(getLimitMessage('pedidos/mês', check.limit)); return }
-    addPedido({ cliente_nome: d.cliente_nome, cliente_id: d.cliente_id || undefined, itens: Number(d.itens), valor: Number(d.valor), valor_pago: Number(d.valor_pago || 0), pagamento: d.pagamento as 'Cartão' | 'PIX' | 'Boleto' | 'Dinheiro' | 'Fiado', status: d.status as 'Pago' | 'Pendente' | 'Atrasado' | 'Parcial' | 'Cancelado', data_vencimento: d.data_vencimento || undefined, observacao: d.observacao || undefined })
+    addPedido({ cliente_nome: d.cliente_nome, cliente_id: d.cliente_id || undefined, produto_id: d.produto_id || undefined, produto_nome: d.produto_nome || undefined, itens: Number(d.itens), valor: Number(d.valor), valor_pago: Number(d.valor_pago || 0), pagamento: d.pagamento as 'Cartão' | 'PIX' | 'Boleto' | 'Dinheiro' | 'Fiado', status: d.status as 'Pago' | 'Pendente' | 'Atrasado' | 'Parcial' | 'Cancelado', data_vencimento: d.data_vencimento || undefined, observacao: d.observacao || undefined })
   }
   const addClienteLimited = (d: Record<string, string>) => {
     const check = checkLimit(userPlan, 'clientes', clientes.length)
@@ -1093,9 +1250,9 @@ export default function App() {
         {/* Low stock alert */}
         {!isDemo && page === 'dashboard' && <LowStockAlert produtos={produtos} threshold={lowStockThreshold} />}
 
-        {page === 'dashboard' && <DashboardPage isDemo={isDemo} kpiData={currentKpis} transactionsData={currentTransactions} topProductsData={currentTopProducts} />}
+        {page === 'dashboard' && <DashboardPage isDemo={isDemo} kpiData={currentKpis} transactionsData={currentTransactions} topProductsData={currentTopProducts} pedidos={isDemo ? [] : pedidos} produtos={isDemo ? [] : produtos} onGoToVendas={() => setPage('pedidos')} />}
         {page === 'analytics' && <AnalyticsPage isDemo={isDemo} pedidos={pedidos} produtos={produtos} />}
-        {page === 'pedidos' && <VendasPage isDemo={isDemo} data={isDemo ? demoOrdersFormatted : pedidos} clientes={clientes.map(c => ({ id: c.id, nome: c.nome }))} onAdd={isDemo ? undefined : addPedidoLimited} onEdit={isDemo ? undefined : (id, d) => updatePedido(id, { cliente_nome: d.cliente_nome, cliente_id: d.cliente_id || undefined, itens: Number(d.itens), valor: Number(d.valor), valor_pago: Number(d.valor_pago || 0), pagamento: d.pagamento as 'Cartão' | 'PIX' | 'Boleto' | 'Dinheiro' | 'Fiado', status: d.status as 'Pago' | 'Pendente' | 'Atrasado' | 'Parcial' | 'Cancelado', data_vencimento: d.data_vencimento || undefined, observacao: d.observacao || undefined })} onMarkPaid={isDemo ? undefined : (id, valor) => updatePedido(id, { valor_pago: valor, status: 'Pago' })} onDelete={isDemo ? undefined : removePedido} onExport={isDemo ? undefined : () => exportToCSV(pedidos.map(p => ({ codigo: p.codigo, cliente: p.cliente_nome, itens: p.itens, valor: p.valor, valor_pago: p.valor_pago, pagamento: p.pagamento, status: p.status, vencimento: p.data_vencimento || '', data: p.created_at })), 'vendas')} />}
+        {page === 'pedidos' && <VendasPage isDemo={isDemo} data={isDemo ? demoOrdersFormatted : pedidos} clientes={clientes.map(c => ({ id: c.id, nome: c.nome }))} produtos={produtos.map(p => ({ id: p.id, nome: p.nome, preco: p.preco, estoque: p.estoque }))} onAdd={isDemo ? undefined : addPedidoLimited} onEdit={isDemo ? undefined : (id, d) => updatePedido(id, { cliente_nome: d.cliente_nome, cliente_id: d.cliente_id || undefined, itens: Number(d.itens), valor: Number(d.valor), valor_pago: Number(d.valor_pago || 0), pagamento: d.pagamento as 'Cartão' | 'PIX' | 'Boleto' | 'Dinheiro' | 'Fiado', status: d.status as 'Pago' | 'Pendente' | 'Atrasado' | 'Parcial' | 'Cancelado', data_vencimento: d.data_vencimento || undefined, observacao: d.observacao || undefined })} onMarkPaid={isDemo ? undefined : (id, valor) => updatePedido(id, { valor_pago: valor, status: 'Pago' })} onDelete={isDemo ? undefined : removePedido} onExport={isDemo ? undefined : () => exportToCSV(pedidos.map(p => ({ codigo: p.codigo, cliente: p.cliente_nome, itens: p.itens, valor: p.valor, valor_pago: p.valor_pago, pagamento: p.pagamento, status: p.status, vencimento: p.data_vencimento || '', data: p.created_at })), 'vendas')} />}
         {page === 'produtos' && <ProdutosPage isDemo={isDemo} data={isDemo ? demoProdutosFormatted : produtos} categorias={categoriasNomes} onAdd={isDemo ? undefined : addProdutoLimited} onEdit={isDemo ? undefined : (id, d) => updateProduto(id, { nome: d.nome, categoria: d.categoria, preco: Number(d.preco), estoque: Number(d.estoque), vendidos: Number(d.vendidos), imagem_url: d.imagem_url || undefined, status: d.status as 'Ativo' | 'Esgotado' | 'Baixo' })} onDelete={isDemo ? undefined : removeProduto} onExport={isDemo ? undefined : () => exportToCSV(produtos.map(p => ({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, vendidos: p.vendidos, status: p.status })), 'produtos')} />}
         {page === 'clientes' && <ClientesPage isDemo={isDemo} data={isDemo ? demoClientesFormatted : clientes} onAdd={isDemo ? undefined : addClienteLimited} onEdit={isDemo ? undefined : (id, d) => updateCliente(id, { nome: d.nome, email: d.email, telefone: d.telefone || undefined, pedidos: Number(d.pedidos), gasto_total: Number(d.gasto_total), status: d.status as 'VIP' | 'Ativo' | 'Novo' })} onDelete={isDemo ? undefined : removeCliente} onExport={isDemo ? undefined : () => exportToCSV(clientes.map(c => ({ nome: c.nome, telefone: c.telefone || '', email: c.email, pedidos: c.pedidos, gasto_total: c.gasto_total, status: c.status })), 'clientes')} />}
         {page === 'config' && <ConfigPage isDemo={isDemo} user={user} userPlan={userPlan} storeSettings={storeSettings} onSaveStore={(d) => upsertStore(d as Record<string, unknown>)} team={team} onInvite={inviteTeam} onRemoveMember={removeTeamMember} onSignOut={handleSignOut} />}

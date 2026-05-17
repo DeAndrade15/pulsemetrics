@@ -101,11 +101,35 @@ export function usePedidos(userId: string | undefined) {
 
   useEffect(() => { fetch() }, [fetch])
 
-  const add = async (pedido: Omit<Pedido, 'id' | 'user_id' | 'created_at' | 'codigo'> & { cliente_id?: string; valor_pago?: number; data_vencimento?: string; observacao?: string }) => {
+  const add = async (pedido: Omit<Pedido, 'id' | 'user_id' | 'created_at' | 'codigo'> & { cliente_id?: string; produto_id?: string; produto_nome?: string; valor_pago?: number; data_vencimento?: string; observacao?: string }) => {
     const codigo = `#ORD-${Math.floor(1000 + Math.random() * 9000)}`
     const { error } = await supabase.from('pedidos').insert({ ...pedido, user_id: userId, codigo, valor_pago: pedido.valor_pago || 0 })
-    if (!error) await fetch()
-    return { error }
+    if (error) return { error }
+
+    // Baixar estoque + incrementar vendidos do produto
+    if (pedido.produto_id && pedido.itens) {
+      const { data: prod } = await supabase.from('produtos').select('estoque, vendidos').eq('id', pedido.produto_id).single()
+      if (prod) {
+        const novoEstoque = Math.max(0, (prod.estoque || 0) - pedido.itens)
+        const novosVendidos = (prod.vendidos || 0) + pedido.itens
+        const novoStatus = novoEstoque === 0 ? 'Esgotado' : novoEstoque < 5 ? 'Baixo' : 'Ativo'
+        await supabase.from('produtos').update({ estoque: novoEstoque, vendidos: novosVendidos, status: novoStatus }).eq('id', pedido.produto_id)
+      }
+    }
+
+    // Atualizar contadores do cliente
+    if (pedido.cliente_id) {
+      const { data: cli } = await supabase.from('clientes').select('pedidos, gasto_total').eq('id', pedido.cliente_id).single()
+      if (cli) {
+        await supabase.from('clientes').update({
+          pedidos: (cli.pedidos || 0) + 1,
+          gasto_total: (cli.gasto_total || 0) + pedido.valor,
+        }).eq('id', pedido.cliente_id)
+      }
+    }
+
+    await fetch()
+    return { error: null }
   }
 
   const update = async (id: string, updates: Partial<Pedido>) => {
@@ -115,9 +139,35 @@ export function usePedidos(userId: string | undefined) {
   }
 
   const remove = async (id: string) => {
+    // Recuperar venda antes de deletar pra reverter estoque/cliente
+    const { data: pedido } = await supabase.from('pedidos').select('*').eq('id', id).single()
     const { error } = await supabase.from('pedidos').delete().eq('id', id)
-    if (!error) await fetch()
-    return { error }
+    if (error) return { error }
+
+    // Reverter estoque do produto
+    if (pedido?.produto_id && pedido.itens) {
+      const { data: prod } = await supabase.from('produtos').select('estoque, vendidos').eq('id', pedido.produto_id).single()
+      if (prod) {
+        const novoEstoque = (prod.estoque || 0) + pedido.itens
+        const novosVendidos = Math.max(0, (prod.vendidos || 0) - pedido.itens)
+        const novoStatus = novoEstoque === 0 ? 'Esgotado' : novoEstoque < 5 ? 'Baixo' : 'Ativo'
+        await supabase.from('produtos').update({ estoque: novoEstoque, vendidos: novosVendidos, status: novoStatus }).eq('id', pedido.produto_id)
+      }
+    }
+
+    // Reverter contadores do cliente
+    if (pedido?.cliente_id) {
+      const { data: cli } = await supabase.from('clientes').select('pedidos, gasto_total').eq('id', pedido.cliente_id).single()
+      if (cli) {
+        await supabase.from('clientes').update({
+          pedidos: Math.max(0, (cli.pedidos || 0) - 1),
+          gasto_total: Math.max(0, (cli.gasto_total || 0) - (pedido.valor || 0)),
+        }).eq('id', pedido.cliente_id)
+      }
+    }
+
+    await fetch()
+    return { error: null }
   }
 
   return { pedidos, loading, add, update, remove, refresh: fetch }

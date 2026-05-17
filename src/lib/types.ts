@@ -30,6 +30,8 @@ export interface Pedido {
   codigo: string
   cliente_nome: string
   cliente_id?: string
+  produto_id?: string
+  produto_nome?: string
   itens: number
   valor: number
   valor_pago: number
