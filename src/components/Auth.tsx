@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Activity } from 'lucide-react'
+import { Activity, Mail, ArrowLeft } from 'lucide-react'
 import styles from './Auth.module.css'
 
 interface AuthProps {
   onSignIn: (email: string, password: string) => Promise<{ error: unknown }>
-  onSignUp: (email: string, password: string, nome: string) => Promise<{ error: unknown }>
+  onSignUp: (email: string, password: string, nome: string) => Promise<{ data: unknown; error: unknown }>
   onGoogle: () => Promise<{ error: unknown }>
   onDemo: () => void
 }
@@ -16,22 +16,92 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onDemo }: AuthProps) {
   const [nome, setNome] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [emailSent, setEmailSent] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    const { error } = isLogin
-      ? await onSignIn(email, password)
-      : await onSignUp(email, password, nome)
-
-    if (error) {
-      setError(typeof error === 'object' && error !== null && 'message' in error
-        ? (error as { message: string }).message
-        : 'Erro ao autenticar')
+    if (isLogin) {
+      const { error } = await onSignIn(email, password)
+      if (error) {
+        setError(typeof error === 'object' && error !== null && 'message' in error
+          ? (error as { message: string }).message
+          : 'Email ou senha incorretos')
+      }
+    } else {
+      const { error } = await onSignUp(email, password, nome)
+      if (error) {
+        setError(typeof error === 'object' && error !== null && 'message' in error
+          ? (error as { message: string }).message
+          : 'Erro ao criar conta')
+      } else {
+        setEmailSent(true)
+      }
     }
     setLoading(false)
+  }
+
+  // Email confirmation screen
+  if (emailSent) {
+    return (
+      <div className={styles.overlay}>
+        <div className={styles.card}>
+          <div className={styles.brand}>
+            <div className={styles.brandIcon}><Activity size={22} /></div>
+            <span className={styles.brandName}>PulseMetrics</span>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: 16,
+              background: 'rgba(16, 185, 129, 0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px'
+            }}>
+              <Mail size={28} color="#10b981" />
+            </div>
+
+            <h2 className={styles.title}>Verifique seu email</h2>
+            <p className={styles.subtitle} style={{ marginBottom: 16 }}>
+              Enviamos um link de confirmação para
+            </p>
+            <p style={{
+              fontFamily: 'Space Grotesk', fontWeight: 600, fontSize: '1rem',
+              color: 'var(--white)', marginBottom: 24,
+              padding: '10px 16px', background: 'var(--bg3)',
+              borderRadius: 10, border: '1px solid var(--border)',
+              display: 'inline-block'
+            }}>
+              {email}
+            </p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.6, marginBottom: 28 }}>
+              Clique no link enviado para ativar sua conta.<br />
+              Verifique também a pasta de spam.
+            </p>
+
+            <button
+              className={styles.btnSubmit}
+              onClick={() => { setEmailSent(false); setIsLogin(true); setError('') }}
+              style={{ maxWidth: 280, margin: '0 auto' }}
+            >
+              <ArrowLeft size={16} style={{ marginRight: 6 }} />
+              Voltar para o login
+            </button>
+
+            <button
+              type="button"
+              className={styles.btnDemo}
+              onClick={onDemo}
+              style={{ maxWidth: 280, margin: '12px auto 0' }}
+            >
+              Explorar modo demo
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -78,7 +148,7 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onDemo }: AuthProps) {
             <label>Senha</label>
             <input
               type="password"
-              placeholder="••••••••"
+              placeholder="Mínimo 6 caracteres"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
