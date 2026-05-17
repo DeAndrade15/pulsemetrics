@@ -72,6 +72,105 @@ const tooltipStyle = {
 
 const initials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2)
 
+// ===== WHATSAPP MODAL (cobrança) =====
+function WhatsAppModal({ cliente, telefone, deve, vencimento, codigo, storeName, onClose }: {
+  cliente: string
+  telefone: string
+  deve: number
+  vencimento?: string
+  codigo: string
+  storeName?: string
+  onClose: () => void
+}) {
+  const loja = storeName || 'a loja'
+  const venc = vencimento ? new Date(vencimento).toLocaleDateString('pt-BR') : ''
+  const valorFmt = `R$ ${deve.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  const templates = [
+    {
+      label: 'Lembrete amigável',
+      text: `Oi ${cliente}, tudo bem? 😊\n\nPassando pra lembrar da sua compra ${codigo} no valor de ${valorFmt}${venc ? ` que venceu em ${venc}` : ''}.\n\nQuando puder, me avisa pra acertarmos! Qualquer coisa, é só me chamar aqui. 🙌`
+    },
+    {
+      label: 'Direto e cordial',
+      text: `Olá ${cliente}! Tudo bem?\n\nEstou entrando em contato sobre o pedido ${codigo} no valor de ${valorFmt}${venc ? ` com vencimento em ${venc}` : ''} que ainda consta em aberto.\n\nVocê consegue me dar uma previsão de quando vai conseguir efetuar o pagamento?\n\nObrigado!`
+    },
+    {
+      label: 'Casual / breve',
+      text: `Oi ${cliente}! Tudo certo?\n\nLembrando do valor de ${valorFmt} aqui de ${loja}. Quando der pra acertar me avisa! 👍`
+    },
+    {
+      label: 'Cobrança formal',
+      text: `Prezado(a) ${cliente},\n\nIdentificamos que a venda ${codigo} no valor de ${valorFmt}${venc ? `, com vencimento em ${venc},` : ''} ainda encontra-se pendente.\n\nSolicito a gentileza de regularizar o pagamento ou nos retornar para combinarmos uma nova data.\n\nAgradeço a atenção.`
+    },
+  ]
+
+  const [selected, setSelected] = useState<number | null>(0)
+  const [customMode, setCustomMode] = useState(false)
+  const [customText, setCustomText] = useState('')
+
+  const finalMessage = customMode ? customText : (selected !== null ? templates[selected].text : '')
+
+  const phoneClean = telefone.replace(/\D/g, '')
+  const whatsappUrl = `https://wa.me/55${phoneClean}?text=${encodeURIComponent(finalMessage)}`
+
+  const handleSend = () => {
+    if (!finalMessage.trim()) return
+    window.open(whatsappUrl, '_blank')
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }} onClick={onClose}>
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, width: 520, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ fontFamily: 'Space Grotesk', fontSize: '1.15rem', fontWeight: 700, color: 'var(--white)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: '#22c55e' }}>●</span> Cobrar via WhatsApp
+        </h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 18 }}>
+          {cliente} • {telefone || 'sem telefone'} • Deve <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{valorFmt}</span>
+        </p>
+
+        {!telefone && (
+          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: '0.82rem', color: 'var(--red)' }}>
+            Este cliente não tem telefone cadastrado. Cadastre o telefone antes de enviar.
+          </div>
+        )}
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Escolha o tom</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {templates.map((t, i) => (
+              <button key={i} type="button" onClick={() => { setSelected(i); setCustomMode(false) }} style={{ textAlign: 'left', background: !customMode && selected === i ? 'rgba(16,185,129,0.1)' : 'var(--bg3)', border: `1px solid ${!customMode && selected === i ? 'var(--accent)' : 'var(--border)'}`, color: 'var(--white)', padding: '10px 14px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                {t.label}
+              </button>
+            ))}
+            <button type="button" onClick={() => { setCustomMode(true); setCustomText(customText || (selected !== null ? templates[selected].text : '')) }} style={{ textAlign: 'left', background: customMode ? 'rgba(16,185,129,0.1)' : 'var(--bg3)', border: `1px solid ${customMode ? 'var(--accent)' : 'var(--border)'}`, color: 'var(--white)', padding: '10px 14px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+              ✏️ Escrever do zero
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>Pré-visualização (você pode editar)</label>
+          <textarea
+            value={finalMessage}
+            onChange={e => { if (!customMode) setCustomMode(true); setCustomText(e.target.value) }}
+            rows={8}
+            style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', color: 'var(--white)', fontFamily: 'DM Sans', fontSize: '0.88rem', outline: 'none', resize: 'vertical', lineHeight: 1.5 }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--text)', padding: 11, borderRadius: 10, fontFamily: 'DM Sans', fontSize: '0.85rem', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={handleSend} disabled={!telefone || !finalMessage.trim()} style={{ flex: 2, background: !telefone || !finalMessage.trim() ? 'var(--bg3)' : '#22c55e', border: 'none', color: '#fff', padding: 11, borderRadius: 10, fontFamily: 'DM Sans', fontSize: '0.88rem', fontWeight: 700, cursor: !telefone || !finalMessage.trim() ? 'not-allowed' : 'pointer', opacity: !telefone || !finalMessage.trim() ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            Abrir WhatsApp →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ===== MODAL ADD =====
 type FieldOption = string | { value: string; label: string }
 type ModalField = { name: string; label: string; type?: string; options?: FieldOption[]; placeholder?: string; optional?: boolean; readOnly?: boolean }
@@ -216,33 +315,40 @@ function LowStockAlert({ produtos, threshold }: { produtos: { nome: string; esto
 }
 
 // ===== DASHBOARD PAGE =====
-function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData, pedidos, produtos, onGoToVendas }: {
+function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData, pedidos, produtos, clientes, storeName, onGoToVendas }: {
   isDemo: boolean
   kpiData: typeof demoKpis
   transactionsData: typeof demoTransactions
   topProductsData: typeof demoTopProducts
   pedidos: Pedido[]
   produtos: Produto[]
+  clientes: { id: string; nome: string; telefone?: string }[]
+  storeName?: string
   onGoToVendas: () => void
 }) {
+  const [whatsTarget, setWhatsTarget] = useState<null | { cliente: string; telefone: string; valor: number; deve: number; vencimento?: string; codigo: string }>(null)
   // Calcular devedores reais
   const devedores = useMemo(() => {
     if (isDemo) return []
     return pedidos
       .filter(p => p.status !== 'Cancelado' && p.status !== 'Pago')
-      .map(p => ({
-        id: p.id,
-        codigo: p.codigo,
-        cliente: p.cliente_nome,
-        valor: p.valor,
-        pago: p.valor_pago || 0,
-        deve: p.valor - (p.valor_pago || 0),
-        vencimento: p.data_vencimento,
-        status: p.status,
-      }))
+      .map(p => {
+        const cli = p.cliente_id ? clientes.find(c => c.id === p.cliente_id) : null
+        return {
+          id: p.id,
+          codigo: p.codigo,
+          cliente: p.cliente_nome,
+          telefone: cli?.telefone || '',
+          valor: p.valor,
+          pago: p.valor_pago || 0,
+          deve: p.valor - (p.valor_pago || 0),
+          vencimento: p.data_vencimento,
+          status: p.status,
+        }
+      })
       .filter(d => d.deve > 0)
       .sort((a, b) => b.deve - a.deve)
-  }, [pedidos, isDemo])
+  }, [pedidos, isDemo, clientes])
 
   const totalAReceber = devedores.reduce((s, d) => s + d.deve, 0)
   const totalRecebido = isDemo ? 0 : pedidos.reduce((s, p) => s + (p.valor_pago || 0), 0)
@@ -284,7 +390,7 @@ function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData, ped
           </div>
           <div className={styles.tableWrap}>
             <table>
-              <thead><tr><th>Cliente</th><th>Código</th><th>Total</th><th>Pago</th><th>Deve</th><th>Vencimento</th><th>Status</th></tr></thead>
+              <thead><tr><th>Cliente</th><th>Código</th><th>Total</th><th>Pago</th><th>Deve</th><th>Vencimento</th><th>Status</th><th>Cobrar</th></tr></thead>
               <tbody>
                 {devedores.slice(0, 8).map(d => (
                   <tr key={d.id}>
@@ -295,6 +401,11 @@ function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData, ped
                     <td style={{ fontFamily: 'Space Grotesk', fontWeight: 700, color: 'var(--gold)' }}>R$ {d.deve.toLocaleString('pt-BR')}</td>
                     <td style={{ color: '#6b7084', fontSize: '0.82rem' }}>{d.vencimento ? new Date(d.vencimento).toLocaleDateString('pt-BR') : '—'}</td>
                     <td><span className={`${styles.statusBadge} ${statusMap[d.status]}`}>{d.status}</span></td>
+                    <td>
+                      <button onClick={() => setWhatsTarget({ cliente: d.cliente, telefone: d.telefone, valor: d.valor, deve: d.deve, vencimento: d.vencimento, codigo: d.codigo })} disabled={!d.telefone} title={d.telefone ? 'Enviar cobrança pelo WhatsApp' : 'Cliente sem telefone cadastrado'} style={{ background: d.telefone ? 'rgba(34,197,94,0.12)' : 'var(--bg3)', border: `1px solid ${d.telefone ? 'rgba(34,197,94,0.35)' : 'var(--border)'}`, color: d.telefone ? '#22c55e' : 'var(--muted)', padding: '5px 11px', borderRadius: 7, fontSize: '0.72rem', fontWeight: 700, cursor: d.telefone ? 'pointer' : 'not-allowed', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        WhatsApp
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -417,6 +528,18 @@ function DashboardPage({ isDemo, kpiData, transactionsData, topProductsData, ped
             </table>
           </div>
         </div>
+      )}
+
+      {whatsTarget && (
+        <WhatsAppModal
+          cliente={whatsTarget.cliente}
+          telefone={whatsTarget.telefone}
+          deve={whatsTarget.deve}
+          vencimento={whatsTarget.vencimento}
+          codigo={whatsTarget.codigo}
+          storeName={storeName}
+          onClose={() => setWhatsTarget(null)}
+        />
       )}
     </>
   )
@@ -587,9 +710,10 @@ function AnalyticsPage({ isDemo, pedidos, produtos }: { isDemo: boolean; pedidos
 }
 
 // ===== CRUD PAGES =====
-function VendasPage({ isDemo, data, clientes, produtos, onAdd, onEdit, onMarkPaid, onDelete, onExport }: { isDemo: boolean; data: { id: string; codigo: string; cliente_nome: string; produto_nome?: string; itens: number; valor: number | string; valor_pago?: number; pagamento: string; status: string; data_vencimento?: string; observacao?: string; created_at: string }[]; clientes: { id: string; nome: string }[]; produtos: { id: string; nome: string; preco: number; estoque: number }[]; onAdd?: (d: Record<string, string>) => void; onEdit?: (id: string, d: Record<string, string>) => void; onMarkPaid?: (id: string, valor: number) => void; onDelete?: (id: string) => void; onExport?: () => void }) {
+function VendasPage({ isDemo, data, clientes, produtos, storeName, onAdd, onEdit, onMarkPaid, onDelete, onExport }: { isDemo: boolean; data: { id: string; codigo: string; cliente_nome: string; cliente_id?: string; produto_nome?: string; itens: number; valor: number | string; valor_pago?: number; pagamento: string; status: string; data_vencimento?: string; observacao?: string; created_at: string }[]; clientes: { id: string; nome: string; telefone?: string }[]; produtos: { id: string; nome: string; preco: number; estoque: number }[]; storeName?: string; onAdd?: (d: Record<string, string>) => void; onEdit?: (id: string, d: Record<string, string>) => void; onMarkPaid?: (id: string, valor: number) => void; onDelete?: (id: string) => void; onExport?: () => void }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editItem, setEditItem] = useState<typeof data[0] | null>(null)
+  const [whatsTarget, setWhatsTarget] = useState<null | { cliente: string; telefone: string; valor: number; deve: number; vencimento?: string; codigo: string }>(null)
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('')
@@ -689,10 +813,17 @@ function VendasPage({ isDemo, data, clientes, produtos, onAdd, onEdit, onMarkPai
                       <td><span className={`${styles.statusBadge} ${statusMap[o.status]}`}>{o.status}</span></td>
                       <td style={{ color: '#6b7084', fontSize: '0.82rem' }}>{new Date(o.created_at).toLocaleDateString('pt-BR')}</td>
                       {!isDemo && <td>
-                        <div style={{ display: 'flex', gap: 4 }}>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                           {o.status !== 'Pago' && o.status !== 'Cancelado' && onMarkPaid && (
                             <button onClick={() => onMarkPaid(o.id, valor)} title="Marcar como pago" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: 'var(--accent)', cursor: 'pointer', padding: '3px 8px', borderRadius: 6, fontSize: '0.68rem', fontWeight: 600, fontFamily: 'DM Sans' }}>Pago</button>
                           )}
+                          {o.status !== 'Pago' && o.status !== 'Cancelado' && deve > 0 && (() => {
+                            const cli = o.cliente_id ? clientes.find(c => c.id === o.cliente_id) : null
+                            const tel = cli?.telefone || ''
+                            return (
+                              <button onClick={() => setWhatsTarget({ cliente: o.cliente_nome, telefone: tel, valor, deve, vencimento: o.data_vencimento, codigo: o.codigo })} disabled={!tel} title={tel ? 'Cobrar pelo WhatsApp' : 'Cliente sem telefone'} style={{ background: tel ? 'rgba(34,197,94,0.12)' : 'transparent', border: `1px solid ${tel ? 'rgba(34,197,94,0.35)' : 'var(--border)'}`, color: tel ? '#22c55e' : 'var(--muted)', cursor: tel ? 'pointer' : 'not-allowed', padding: '3px 8px', borderRadius: 6, fontSize: '0.68rem', fontWeight: 600, fontFamily: 'DM Sans' }}>Cobrar</button>
+                            )
+                          })()}
                           <button onClick={() => setEditItem(o)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 4 }}><Pencil size={15} /></button>
                           <button onClick={() => onDelete?.(o.id)} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', padding: 4 }}><Trash2 size={15} /></button>
                         </div>
@@ -747,6 +878,18 @@ function VendasPage({ isDemo, data, clientes, produtos, onAdd, onEdit, onMarkPai
           { name: 'observacao', label: 'Observação' },
         ]} initialData={{ cliente_nome: editItem.cliente_nome, itens: String(editItem.itens), valor: String(typeof editItem.valor === 'number' ? editItem.valor : ''), valor_pago: String(editItem.valor_pago || 0), pagamento: editItem.pagamento, status: editItem.status, observacao: editItem.observacao || '' }} onSubmit={(d) => onEdit(editItem.id, d)} onClose={() => setEditItem(null)} />}
       </div>
+
+      {whatsTarget && (
+        <WhatsAppModal
+          cliente={whatsTarget.cliente}
+          telefone={whatsTarget.telefone}
+          deve={whatsTarget.deve}
+          vencimento={whatsTarget.vencimento}
+          codigo={whatsTarget.codigo}
+          storeName={storeName}
+          onClose={() => setWhatsTarget(null)}
+        />
+      )}
     </>
   )
 }
@@ -1250,9 +1393,9 @@ export default function App() {
         {/* Low stock alert */}
         {!isDemo && page === 'dashboard' && <LowStockAlert produtos={produtos} threshold={lowStockThreshold} />}
 
-        {page === 'dashboard' && <DashboardPage isDemo={isDemo} kpiData={currentKpis} transactionsData={currentTransactions} topProductsData={currentTopProducts} pedidos={isDemo ? [] : pedidos} produtos={isDemo ? [] : produtos} onGoToVendas={() => setPage('pedidos')} />}
+        {page === 'dashboard' && <DashboardPage isDemo={isDemo} kpiData={currentKpis} transactionsData={currentTransactions} topProductsData={currentTopProducts} pedidos={isDemo ? [] : pedidos} produtos={isDemo ? [] : produtos} clientes={isDemo ? [] : clientes.map(c => ({ id: c.id, nome: c.nome, telefone: c.telefone }))} storeName={storeSettings?.store_name} onGoToVendas={() => setPage('pedidos')} />}
         {page === 'analytics' && <AnalyticsPage isDemo={isDemo} pedidos={pedidos} produtos={produtos} />}
-        {page === 'pedidos' && <VendasPage isDemo={isDemo} data={isDemo ? demoOrdersFormatted : pedidos} clientes={clientes.map(c => ({ id: c.id, nome: c.nome }))} produtos={produtos.map(p => ({ id: p.id, nome: p.nome, preco: p.preco, estoque: p.estoque }))} onAdd={isDemo ? undefined : addPedidoLimited} onEdit={isDemo ? undefined : (id, d) => updatePedido(id, { cliente_nome: d.cliente_nome, cliente_id: d.cliente_id || undefined, itens: Number(d.itens), valor: Number(d.valor), valor_pago: Number(d.valor_pago || 0), pagamento: d.pagamento as 'Cartão' | 'PIX' | 'Boleto' | 'Dinheiro' | 'Fiado', status: d.status as 'Pago' | 'Pendente' | 'Atrasado' | 'Parcial' | 'Cancelado', data_vencimento: d.data_vencimento || undefined, observacao: d.observacao || undefined })} onMarkPaid={isDemo ? undefined : (id, valor) => updatePedido(id, { valor_pago: valor, status: 'Pago' })} onDelete={isDemo ? undefined : removePedido} onExport={isDemo ? undefined : () => exportToCSV(pedidos.map(p => ({ codigo: p.codigo, cliente: p.cliente_nome, itens: p.itens, valor: p.valor, valor_pago: p.valor_pago, pagamento: p.pagamento, status: p.status, vencimento: p.data_vencimento || '', data: p.created_at })), 'vendas')} />}
+        {page === 'pedidos' && <VendasPage isDemo={isDemo} data={isDemo ? demoOrdersFormatted : pedidos} clientes={clientes.map(c => ({ id: c.id, nome: c.nome, telefone: c.telefone }))} produtos={produtos.map(p => ({ id: p.id, nome: p.nome, preco: p.preco, estoque: p.estoque }))} storeName={storeSettings?.store_name} onAdd={isDemo ? undefined : addPedidoLimited} onEdit={isDemo ? undefined : (id, d) => updatePedido(id, { cliente_nome: d.cliente_nome, cliente_id: d.cliente_id || undefined, itens: Number(d.itens), valor: Number(d.valor), valor_pago: Number(d.valor_pago || 0), pagamento: d.pagamento as 'Cartão' | 'PIX' | 'Boleto' | 'Dinheiro' | 'Fiado', status: d.status as 'Pago' | 'Pendente' | 'Atrasado' | 'Parcial' | 'Cancelado', data_vencimento: d.data_vencimento || undefined, observacao: d.observacao || undefined })} onMarkPaid={isDemo ? undefined : (id, valor) => updatePedido(id, { valor_pago: valor, status: 'Pago' })} onDelete={isDemo ? undefined : removePedido} onExport={isDemo ? undefined : () => exportToCSV(pedidos.map(p => ({ codigo: p.codigo, cliente: p.cliente_nome, itens: p.itens, valor: p.valor, valor_pago: p.valor_pago, pagamento: p.pagamento, status: p.status, vencimento: p.data_vencimento || '', data: p.created_at })), 'vendas')} />}
         {page === 'produtos' && <ProdutosPage isDemo={isDemo} data={isDemo ? demoProdutosFormatted : produtos} categorias={categoriasNomes} onAdd={isDemo ? undefined : addProdutoLimited} onEdit={isDemo ? undefined : (id, d) => updateProduto(id, { nome: d.nome, categoria: d.categoria, preco: Number(d.preco), estoque: Number(d.estoque), vendidos: Number(d.vendidos), imagem_url: d.imagem_url || undefined, status: d.status as 'Ativo' | 'Esgotado' | 'Baixo' })} onDelete={isDemo ? undefined : removeProduto} onExport={isDemo ? undefined : () => exportToCSV(produtos.map(p => ({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, vendidos: p.vendidos, status: p.status })), 'produtos')} />}
         {page === 'clientes' && <ClientesPage isDemo={isDemo} data={isDemo ? demoClientesFormatted : clientes} onAdd={isDemo ? undefined : addClienteLimited} onEdit={isDemo ? undefined : (id, d) => updateCliente(id, { nome: d.nome, email: d.email, telefone: d.telefone || undefined, pedidos: Number(d.pedidos), gasto_total: Number(d.gasto_total), status: d.status as 'VIP' | 'Ativo' | 'Novo' })} onDelete={isDemo ? undefined : removeCliente} onExport={isDemo ? undefined : () => exportToCSV(clientes.map(c => ({ nome: c.nome, telefone: c.telefone || '', email: c.email, pedidos: c.pedidos, gasto_total: c.gasto_total, status: c.status })), 'clientes')} />}
         {page === 'config' && <ConfigPage isDemo={isDemo} user={user} userPlan={userPlan} storeSettings={storeSettings} onSaveStore={(d) => upsertStore(d as Record<string, unknown>)} team={team} onInvite={inviteTeam} onRemoveMember={removeTeamMember} onSignOut={handleSignOut} />}
