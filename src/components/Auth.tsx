@@ -10,6 +10,33 @@ interface AuthProps {
   onDemo: () => void
 }
 
+// Avalia força da senha: retorna 0 (muito fraca) a 4 (forte)
+function passwordStrength(pw: string): { score: number; label: string; color: string; problems: string[] } {
+  const problems: string[] = []
+  if (pw.length < 8) problems.push('Mínimo 8 caracteres')
+  if (!/[A-Za-z]/.test(pw)) problems.push('Pelo menos 1 letra')
+  if (!/[0-9]/.test(pw)) problems.push('Pelo menos 1 número')
+
+  let score = 0
+  if (pw.length >= 8) score++
+  if (pw.length >= 12) score++
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++
+  if (/[0-9]/.test(pw)) score++
+  if (/[^A-Za-z0-9]/.test(pw)) score++
+  score = Math.min(score, 4)
+
+  // Senhas comuns/óbvias
+  const common = ['12345678', 'senha123', 'password', 'qwerty123', 'admin123', '11111111', 'flamengo']
+  if (common.some(c => pw.toLowerCase().includes(c))) {
+    score = Math.min(score, 1)
+    problems.push('Evite palavras óbvias ou comuns')
+  }
+
+  const labels = ['Muito fraca', 'Fraca', 'Razoável', 'Boa', 'Forte']
+  const colors = ['#ef4444', '#f59e0b', '#facc15', '#84cc16', '#10b981']
+  return { score, label: labels[score], color: colors[score], problems }
+}
+
 export function Auth({ onSignIn, onSignUp, onGoogle, onResetPassword, onDemo }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true)
   const [isForgot, setIsForgot] = useState(false)
@@ -20,6 +47,9 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onResetPassword, onDemo }: 
   const [error, setError] = useState('')
   const [emailSent, setEmailSent] = useState(false)
   const [resetSent, setResetSent] = useState(false)
+
+  const strength = !isLogin && password ? passwordStrength(password) : null
+  const canSubmitSignup = !isLogin && strength && strength.problems.length === 0
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,6 +64,13 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onResetPassword, onDemo }: 
           : 'Email ou senha incorretos')
       }
     } else {
+      // Validação extra antes de enviar
+      const s = passwordStrength(password)
+      if (s.problems.length > 0) {
+        setError(`Senha não atende aos requisitos: ${s.problems.join(', ')}`)
+        setLoading(false)
+        return
+      }
       const { error } = await onSignUp(email, password, nome)
       if (error) {
         setError(typeof error === 'object' && error !== null && 'message' in error
@@ -231,12 +268,29 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onResetPassword, onDemo }: 
             <label>Senha</label>
             <input
               type="password"
-              placeholder="Mínimo 6 caracteres"
+              placeholder={isLogin ? 'Sua senha' : 'Mínimo 8 caracteres, com letra e número'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={isLogin ? 6 : 8}
             />
+            {!isLogin && password && strength && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                  {[0, 1, 2, 3].map(i => (
+                    <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i < strength.score ? strength.color : 'rgba(255,255,255,0.08)', transition: 'background 0.2s' }} />
+                  ))}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: strength.color, fontWeight: 600, fontFamily: 'DM Sans' }}>
+                  {strength.label}
+                </div>
+                {strength.problems.length > 0 && (
+                  <ul style={{ margin: '6px 0 0', padding: '0 0 0 16px', fontSize: '0.7rem', color: 'var(--muted)', lineHeight: 1.7 }}>
+                    {strength.problems.map(p => <li key={p}>{p}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
 
           {isLogin && (
@@ -245,7 +299,7 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onResetPassword, onDemo }: 
             </button>
           )}
 
-          <button type="submit" className={styles.btnSubmit} disabled={loading}>
+          <button type="submit" className={styles.btnSubmit} disabled={loading || (!isLogin && !canSubmitSignup)}>
             {loading ? 'Carregando...' : isLogin ? 'Entrar' : 'Criar conta'}
           </button>
 
