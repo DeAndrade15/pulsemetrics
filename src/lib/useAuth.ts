@@ -77,17 +77,28 @@ export function useAuth() {
         body: JSON.stringify({ email, password }),
       })
       const json = await res.json()
-      if (!res.ok) return { error: { message: json.error_description || json.msg || 'Email ou senha incorretos' } }
+      if (!res.ok) {
+        // Handle unconfirmed email
+        if (json.error === 'invalid_grant' && json.error_description?.includes('not confirmed')) {
+          return { error: { message: 'Email ainda não confirmado. Verifique sua caixa de entrada.' } }
+        }
+        return { error: { message: json.error_description || json.msg || json.error || 'Email ou senha incorretos' } }
+      }
+
+      if (!json.access_token) {
+        return { error: { message: 'Erro inesperado no login. Tente novamente.' } }
+      }
 
       // Set session in supabase client
-      const { data } = await supabase.auth.setSession({
+      const { data, error } = await supabase.auth.setSession({
         access_token: json.access_token,
         refresh_token: json.refresh_token,
       })
+      if (error) return { error: { message: error.message } }
       if (data.session?.user) setUser(data.session.user)
       return { error: null }
     } catch (err) {
-      return { error: err }
+      return { error: { message: 'Erro de conexão. Tente novamente.' } }
     }
   }
 
