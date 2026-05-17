@@ -1,14 +1,17 @@
 -- ===== V6: REMOVE EMAIL ADMIN HARDCODED =====
--- Move o email do admin pra uma config secreta do Postgres
--- que não fica exposta no código público.
+-- O email do admin agora fica numa função privada do banco (security definer)
+-- que NÃO vai pro código público.
 
--- 1. Cria função pra buscar o admin email do GUC (Grand Unified Configuration)
-create or replace function public.get_admin_email() returns text
-language sql stable as $$
-  select current_setting('app.admin_email', true)
-$$;
+-- 1. Função que retorna o admin email — VOCÊ cria essa manualmente no SQL Editor
+--    com o email real. Exemplo (NÃO commitar com email real):
+--
+--    create or replace function public.get_admin_email() returns text
+--    language sql security definer stable as $$
+--      select 'SEU_EMAIL_AQUI'::text
+--    $$;
+--    revoke execute on function public.get_admin_email() from anon, authenticated;
 
--- 2. Atualiza o trigger pra usar a função em vez de hardcode
+-- 2. Trigger atualizado que usa a função em vez de hardcode
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer as $$
 declare
@@ -32,10 +35,3 @@ begin
   return new;
 end;
 $$;
-
--- 3. IMPORTANTE: Você precisa rodar manualmente, UMA VEZ, no SQL Editor do Supabase:
---    (substitua SEU_EMAIL_AQUI pelo seu email real)
---
--- alter database postgres set app.admin_email = 'SEU_EMAIL_AQUI';
---
--- Isso salva o email como configuração do banco, NÃO vai pro código.
