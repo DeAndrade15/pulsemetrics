@@ -27,12 +27,15 @@ export function useAuth() {
     return { error }
   }
 
-  const signUpWithEmail = async (email: string, password: string, nome: string) => {
+  const signUpWithEmail = async (email: string, password: string, _nome: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { nome } }
     })
+    // Update user metadata after signup (avoids header encoding issues with accented chars)
+    if (data?.user && !error) {
+      await supabase.auth.updateUser({ data: { nome: _nome } })
+    }
     return { data, error }
   }
 
