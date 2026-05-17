@@ -10,6 +10,37 @@ interface AuthProps {
   onDemo: () => void
 }
 
+// Verifica se a senha está em vazamentos conhecidos via HaveIBeenPwned API
+// Usa k-anonymity: só envia os 5 primeiros caracteres do hash SHA-1 (a senha nunca trafega)
+async function checkPasswordLeaked(password: string): Promise<{ leaked: boolean; count: number }> {
+  try {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(password)
+    const hashBuffer = await crypto.subtle.digest('SHA-1', data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+
+    const prefix = hashHex.slice(0, 5)
+    const suffix = hashHex.slice(5)
+
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: { 'Add-Padding': 'true' } // anti-fingerprinting
+    })
+    if (!res.ok) return { leaked: false, count: 0 } // fail open se API offline
+
+    const text = await res.text()
+    for (const line of text.split('\n')) {
+      const [hashSuffix, countStr] = line.split(':')
+      if (hashSuffix.trim().toUpperCase() === suffix) {
+        return { leaked: true, count: parseInt(countStr, 10) || 1 }
+      }
+    }
+    return { leaked: false, count: 0 }
+  } catch {
+    return { leaked: false, count: 0 } // se algo quebrar, não bloqueia
+  }
+}
+
 // Avalia força da senha: retorna 0 (muito fraca) a 4 (forte)
 function passwordStrength(pw: string): { score: number; label: string; color: string; problems: string[] } {
   const problems: string[] = []
@@ -68,6 +99,13 @@ export function Auth({ onSignIn, onSignUp, onGoogle, onResetPassword, onDemo }: 
       const s = passwordStrength(password)
       if (s.problems.length > 0) {
         setError(`Senha não atende aos requisitos: ${s.problems.join(', ')}`)
+        setLoading(false)
+        return
+      }
+      // Checa se a senha já apareceu em vazamentos conhecidos
+      const leak = await checkPasswordLeaked(password)
+      if (leak.leaked) {
+        setError(`Esta senha já apareceu em ${leak.count.toLocaleString('pt-BR')} vazamentos públicos. Escolha outra senha pra sua segurança.`)
         setLoading(false)
         return
       }
